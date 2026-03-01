@@ -95,7 +95,7 @@ void Renderer::Render(const Scene& scene, const Camera& camera)
 		m_ImageVerticalIterator.begin(), m_ImageVerticalIterator.end(),
 		[this] (uint32_t y)
 		{
-			std::for_each(
+			std::ranges::for_each(
 				m_ImageHorizontalIterator.begin(), m_ImageHorizontalIterator.end(),
 				[this, y] (const uint32_t x)
 				{
@@ -170,7 +170,7 @@ glm::vec4 Renderer::PerPixel(uint32_t x, uint32_t y) const
 		] = TraceRay(ray);
 		if (HitDistance < 0.0f)
 		{
-			auto skyColor = glm::vec3(0.6f, 0.7f, 0.9f);
+			[[maybe_unused]] auto skyColor = glm::vec3(0.6f, 0.7f, 0.9f);
 			// light += skyColor * contribution;
 			break;
 		}
