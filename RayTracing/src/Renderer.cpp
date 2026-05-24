@@ -2,7 +2,9 @@
 
 #include "Walnut/Random.h"
 
+#include <cstring>
 #include <execution>
+#include <limits>
 
 namespace Utils
 {
@@ -43,6 +45,12 @@ namespace Utils
 	}
 }
 
+Renderer::~Renderer()
+{
+	delete[] m_ImageData;
+	delete[] m_AccumulationData;
+}
+
 void Renderer::OnResize(uint32_t width, uint32_t height)
 {
 	if (m_FinalImage)
@@ -66,6 +74,7 @@ void Renderer::OnResize(uint32_t width, uint32_t height)
 	m_ImageData = new uint32_t[width * height];
 	delete[] m_AccumulationData;
 	m_AccumulationData = new glm::vec4[width * height];
+	m_FrameIndex = 1;
 
 	m_ImageHorizontalIterator.resize(width);
 	m_ImageVerticalIterator.resize(height);
@@ -125,7 +134,7 @@ void Renderer::Render(const Scene& scene, const Camera& camera)
 			m_AccumulationData[x + y * m_FinalImage->GetWidth()] += color;
 
 			glm::vec4 accumulatedColor = m_AccumulationData[x + y * m_FinalImage->GetWidth()];
-			accumulatedColor /= (float)m_FrameIndex;
+			accumulatedColor /= static_cast<float>(m_FrameIndex);
 
 			accumulatedColor = glm::clamp(
 				accumulatedColor,
