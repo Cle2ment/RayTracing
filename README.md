@@ -13,7 +13,7 @@ This is a Ray Tracing repository built by C++.
 `NOTICE: You need to have Vulkan SDK installed on your PC first to run the project.`
 1. To clone the repository, use `git clone https://github.com/BoningtonChen/RayTracing.git`
 2. Run `Setup.bat` in the `scripts`folder.
-3.  Open `RayTracing.sln` in your Visual Studio, and run the project.(Recommend running in Release or Dist mode to retrieve better performance).
+3.  Open `RayTracing.slnx` in your Visual Studio, and run the project.(Recommend running in Release or Dist mode to retrieve better performance).
 
 ## Demonstration
 The Ray Tracing project is still under development. \
