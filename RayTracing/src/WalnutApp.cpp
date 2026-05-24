@@ -1,5 +1,3 @@
-#include <dinput.h>
-
 #include "Walnut/Application.h"
 #include "Walnut/EntryPoint.h"
 
@@ -10,6 +8,7 @@
 #include "Camera.h"
 
 #include <glm/gtc/type_ptr.hpp>
+#include <limits>
 
 using namespace Walnut;
 
