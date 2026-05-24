@@ -195,6 +195,15 @@ glm::vec4 Renderer::PerPixel(uint32_t x, uint32_t y) const
 		contribution *= material.Albedo;
 		light += material.GetEmission();
 
+		// Russian roulette: probabilistically terminate low-contribution paths (after 3 guaranteed bounces)
+		if (i > 2)
+		{
+			const float p = glm::max(contribution.r, glm::max(contribution.g, contribution.b));
+			if (p < 0.001f || (p < 1.0f && Utils::RandomFloat(seed) > p))
+				break;
+			contribution /= p;
+		}
+
 		ray.Origin = WorldPosition + WorldNormal * 0.0001f;
 		// ray.Direction = glm::reflect(
 		// 	 ray.Direction, 
