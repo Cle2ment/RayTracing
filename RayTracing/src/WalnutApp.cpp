@@ -79,7 +79,10 @@ public:
 	virtual void OnUpdate(const float ts) override
 	{
 		if (m_Camera.OnUpdate(ts))
+		{
 			m_Renderer.ResetFrameIndex();
+			m_NeedsRender = true;
+		}
 	}
 
 	virtual void OnUIRender() override
@@ -88,17 +91,24 @@ public:
 
 		ImGui::Text("Last render: %.3fms", m_LastRenderTime);
 		if (ImGui::Button("Render"))
-			Render();
+			m_NeedsRender = true;
 
-		ImGui::Checkbox("Accumulate", &m_Renderer.GetSettings().Accumulate);
-		ImGui::Checkbox("Slow Random", &m_Renderer.GetSettings().SlowRandom);
+		if (ImGui::Checkbox("Accumulate", &m_Renderer.GetSettings().Accumulate))
+			m_NeedsRender = true;
+		if (ImGui::Checkbox("Slow Random", &m_Renderer.GetSettings().SlowRandom))
+			m_NeedsRender = true;
 
 		if (ImGui::Button("Reset"))
+		{
 			m_Renderer.ResetFrameIndex();
+			m_NeedsRender = true;
+		}
 
 		ImGui::End();
 
 		ImGui::Begin("Scene");
+
+		bool changed = false;
 
 		for (size_t i = 0; i < m_Scene.Spheres.size(); i++)
 		{
@@ -106,17 +116,17 @@ public:
 
 			auto& [Position, Radius, MaterialIndex] = m_Scene.Spheres[i];
 
-			ImGui::DragFloat3(
+			changed |= ImGui::DragFloat3(
 				"Position", 
 				glm::value_ptr(Position), 
 				0.1f
 			);
-			ImGui::DragFloat(
+			changed |= ImGui::DragFloat(
 				"Radius", 
 				&Radius, 
 				0.1f
 			);
-			ImGui::DragInt(
+			changed |= ImGui::DragInt(
 				"Material", 
 				&MaterialIndex, 
 				1.0f, 0, static_cast<int>(m_Scene.Materials.size()) - 1
@@ -139,25 +149,25 @@ public:
 				EmissionPower
 			] = m_Scene.Materials[i];
 
-			ImGui::ColorEdit3(
+			changed |= ImGui::ColorEdit3(
 				"Albedo", 
 				glm::value_ptr(Albedo)
 			);
-			ImGui::DragFloat(
+			changed |= ImGui::DragFloat(
 				"Roughness", 
 				&Roughness, 
 				0.05f, 0.0f, 1.0f
 			);
-			ImGui::DragFloat(
+			changed |= ImGui::DragFloat(
 				"Metallic",
 				&Metallic,
 				0.05f, 0.0f, 1.0f
 			);
-			ImGui::ColorEdit3(
+			changed |= ImGui::ColorEdit3(
 				"Emission Color", 
 				glm::value_ptr(EmissionColor)
 			);
-			ImGui::DragFloat(
+			changed |= ImGui::DragFloat(
 				"Emission Power",
 				&EmissionPower,
 				0.05f, 0.0f, std::numeric_limits<float>::max()
@@ -168,14 +178,21 @@ public:
 			ImGui::PopID();
 		}
 
+		if (changed)
+			m_NeedsRender = true;
+
 		ImGui::End();
 
 		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
 
 		ImGui::Begin("Viewport");
 
-		m_ViewportWidth = static_cast<uint32_t>(ImGui::GetContentRegionAvail().x);
-		m_ViewportHeight = static_cast<uint32_t>(ImGui::GetContentRegionAvail().y);
+		uint32_t newWidth = static_cast<uint32_t>(ImGui::GetContentRegionAvail().x);
+		uint32_t newHeight = static_cast<uint32_t>(ImGui::GetContentRegionAvail().y);
+		if (newWidth != m_ViewportWidth || newHeight != m_ViewportHeight)
+			m_NeedsRender = true;
+		m_ViewportWidth = newWidth;
+		m_ViewportHeight = newHeight;
 
 		if (const auto image = m_Renderer.GetFinalImage())
 			ImGui::Image(
@@ -191,7 +208,8 @@ public:
 
 		ImGui::PopStyleVar();
 
-		Render();
+		if (m_NeedsRender)
+			Render();
 	}
 
 	void Render()
@@ -203,6 +221,9 @@ public:
 		m_Renderer.Render(m_Scene, m_Camera);
 
 		m_LastRenderTime = timer.ElapsedMillis();
+
+		if (!m_Renderer.GetSettings().Accumulate)
+			m_NeedsRender = false;
 	}
 
 private:
@@ -213,6 +234,7 @@ private:
 	uint32_t m_ViewportWidth = 0, m_ViewportHeight = 0;
 
 	float m_LastRenderTime = 0.0f;
+	bool m_NeedsRender = true;
 };
 
 Walnut::Application* Walnut::CreateApplication(int argc, char** argv)
