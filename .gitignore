@@ -19,3 +19,16 @@ bin-int/
 copilot*.md
 
 .omo/
+
+# CUDA Build Artifacts
+*.obj
+*.exp
+*.lib
+*.pdb
+*.ilk
+*.iobj
+*.ipdb
+*.ptx
+*.cubin
+*.fatbin
+nvcc_temp/
