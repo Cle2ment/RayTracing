@@ -27,7 +27,10 @@ project "RayTracing"
    targetdir "bin/%{cfg.buildcfg}"
    staticruntime "off"
 
-   files { "src/**.h", "src/**.cpp", "src/**.cu", "src/**.cuh" }
+   files { "src/**.h", "src/**.cpp" }
+   if cudaFound then
+      files { "src/**.cu", "src/**.cuh" }
+   end
 
    includedirs
    {
