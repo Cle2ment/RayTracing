@@ -1,22 +1,136 @@
-﻿# Ray Tracing
+﻿# Ray Tracing — NVIDIA GPU Accelerated Path Tracer
+
 ![Free Palestine](https://freepalestinemovement.org/wp-content/uploads/2013/06/banner.jpg)
 ![Static Badge](https://img.shields.io/badge/Inspired_by-TheCherno-yellow?logo=Github)
-![Static Badge](https://img.shields.io/badge/Language-C++-blue?logo=cplusplus)
+![Static Badge](https://img.shields.io/badge/Language-C++20-blue?logo=cplusplus)
+![Static Badge](https://img.shields.io/badge/GPU-CUDA-green?logo=nvidia)
 ![Static Badge](https://img.shields.io/badge/Built_by-Premake-blue?logo=lua)
 ![Static Badge](https://img.shields.io/badge/License-MIT-green)
 
-
 ## Description
-This is a Ray Tracing repository built by C++.
 
-## How To USE
-`NOTICE: You need to have Vulkan SDK installed on your PC first to run the project.`
-1. To clone the repository, use `git clone https://github.com/BoningtonChen/RayTracing.git`
-2. Run `Setup.bat` in the `scripts`folder.
-3.  Open `RayTracing.slnx` in your Visual Studio, and run the project.(Recommend running in Release or Dist mode to retrieve better performance).
+A real-time interactive path tracer built with C++20 and the Walnut application framework. **GPU-accelerated via NVIDIA CUDA** on the `nv-render` branch — the entire path tracing pipeline (ray generation, intersection, shading, accumulation) runs on the GPU for orders-of-magnitude faster rendering.
+
+### Architecture
+
+| Component | CPU Path (`master`) | GPU Path (`nv-render`) |
+|-----------|---------------------|------------------------|
+| Ray Generation | `std::execution::par` across CPU threads | CUDA kernel — one thread per pixel |
+| Ray-Sphere Intersection | Brute-force loop (CPU) | `__device__` function (GPU) |
+| Path Tracing (5 bounces) | CPU scalar loop | GPU SIMT parallelism |
+| Random Number Generation | PCG Hash (CPU) | PCG Hash (GPU `__device__`) |
+| Accumulation Buffer | Host `glm::vec4[]` | Device `float4[]` |
+| Display | Walnut::Image (Vulkan) | Walnut::Image (Vulkan) via D2H copy |
+| Russian Roulette | CPU | GPU |
+
+**GPU Kernel Layout**: 16×16 thread blocks, each pixel gets one CUDA thread. The `RenderKernel` performs full path tracing per pixel including ray-sphere intersection, Russian roulette termination, Lambertian diffuse BRDF sampling, and progressive accumulation.
+
+## Requirements
+
+### GPU Rendering (`nv-render` branch)
+- **NVIDIA GPU** with Compute Capability ≥ 7.5 (Turing: GTX 16xx/RTX 20xx or newer)
+- **CUDA Toolkit 11.8+** (12.x recommended)
+- **Vulkan SDK 1.4+**
+- **Visual Studio 2022** (v17.0+) with C++20 support
+
+### CPU Rendering (`master` branch)
+- **Vulkan SDK 1.3+**
+- **Visual Studio 2022**
+
+## How To Build
+
+### 1. Clone the Repository
+```bash
+git clone --recursive https://github.com/BoningtonChen/RayTracing.git
+cd RayTracing
+git checkout nv-render  # For GPU-accelerated version
+```
+
+### 2. Install Dependencies
+- **[CUDA Toolkit](https://developer.nvidia.com/cuda-downloads)** — Required for GPU rendering. Set `CUDA_PATH` environment variable automatically by the installer.
+- **[Vulkan SDK](https://vulkan.lunarg.com/)** — Required for display. Install to default location.
+
+### 3. Generate Project Files
+```bash
+cd scripts
+Setup.bat
+```
+This runs Premake5 to generate Visual Studio 2022 solution files. The build system automatically detects CUDA and enables GPU acceleration.
+
+### 4. Build & Run
+Open `RayTracing.slnx` in Visual Studio 2022 and build (Release or Dist mode recommended for performance).
+
+### Build Without CUDA
+If CUDA Toolkit is not installed, the project builds as a CPU-only path tracer (same as `master` branch). The build system defines `WL_CUDA` only when CUDA is detected.
+
+## Rendering Pipeline
+
+```
+Camera (CPU)                    Scene (CPU)
+    │                                │
+    ├─ Ray Directions ─┐         ┌─── Spheres + Materials
+    │                  │         │
+    ▼                  ▼         ▼
+┌─────────────────────────────────────────┐
+│           CUDARenderer.cu               │
+│                                         │
+│  RenderKernel <<<grid, block>>>         │
+│    └─ PerPixel(x, y)                    │
+│         └─ for bounce in 0..5:          │
+│              └─ TraceRay()              │
+│                   └─ sphere loop (GPU)  │
+│              └─ Russian Roulette        │
+│              └─ Diffuse BRDF            │
+│    └─ Accumulate + Tone Map             │
+│    └─ Write RGBA8 output                │
+└─────────────────────────────────────────┘
+    │
+    ▼ (cudaMemcpy D2H)
+Walnut::Image (Vulkan) ──► Display
+```
+
+## File Structure
+
+```
+RayTracing/
+├── src/
+│   ├── WalnutApp.cpp          # Entry point, ImGui UI, scene setup
+│   ├── Renderer.h/cpp         # Renderer class (CPU/GPU dispatch)
+│   ├── Camera.h/cpp           # Camera (CPU), ray direction generation
+│   ├── Ray.h                  # Ray struct (CPU)
+│   ├── Scene.h                # Scene data (CPU spheres + materials)
+│   ├── CUDATypes.cuh          # GPU data structures
+│   ├── CUDARenderer.cuh       # GPU kernels + device functions
+│   ├── CUDARenderer.cu        # CUDA host wrappers (C linkage)
+│   └── CUDARenderer.h         # Host C++ interface + packing helpers
+├── premake5.lua               # Build configuration (+ CUDA support)
+├── .github/workflows/build.yml # CI/CD pipeline
+└── README.md
+```
+
+## CI/CD
+
+[![Build (CUDA + Vulkan)](https://github.com/BoningtonChen/RayTracing/actions/workflows/build.yml/badge.svg)](https://github.com/BoningtonChen/RayTracing/actions/workflows/build.yml)
+
+GitHub Actions builds on every push and pull request:
+- **Windows Server 2022** with CUDA 12.8 + Vulkan SDK
+- Debug and Release configurations
+- Build artifacts available for download on Release builds
+
+## Key Bindings
+
+| Key | Action |
+|-----|--------|
+| Right Mouse + Drag | Rotate camera |
+| W/A/S/D | Move camera |
+| Q/E | Move down/up |
+| Render button | Trigger re-render |
+| Accumulate checkbox | Enable/disable progressive rendering |
 
 ## Demonstration
-The Ray Tracing project is still under development. \
+
+The Ray Tracing project is still under development.
+
 Here is the current demonstration of the project.\
 ![Ray Tracing Default Example](https://github.com/BoningtonChen/RayTracing/blob/master/Materials/RayTracing-example01.png)
 ![Ray Tracing Example](https://github.com/BoningtonChen/RayTracing/blob/master/Materials/RayTracing-example02.png)
