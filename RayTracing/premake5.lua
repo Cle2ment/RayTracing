@@ -18,10 +18,12 @@ end
 -- sm_75: Turing (RTX 20xx, GTX 16xx)
 -- sm_86: Ampere (RTX 30xx)
 -- sm_89: Ada Lovelace (RTX 40xx)
+-- sm_120: Blackwell (RTX 50xx)
 local cudaArchs = {
    "compute_75,code=sm_75",
    "compute_86,code=sm_86",
    "compute_89,code=sm_89",
+   "compute_120,code=sm_120",
 }
 
 function getCudaArchFlags()
