@@ -61,6 +61,7 @@ Renderer::Renderer()
 {
 #ifdef WL_CUDA
 	m_CUDAState = CUDARenderer_Create();
+	fprintf(stdout, "[CUDA] Renderer created, state=%p\n", static_cast<void*>(m_CUDAState));
 #endif
 }
 
@@ -125,11 +126,19 @@ void Renderer::OnResize(uint32_t width, uint32_t height)
 		{
 			cudaInitialized = true;
 			CUDARenderer_SetSettings(m_CUDAState, 5, static_cast<int>(m_Settings.Accumulate));
+			fprintf(stdout, "[CUDA] Init SUCCESS\n");
+		}
+		else
+		{
+			fprintf(stderr, "[CUDA] Init FAILED - falling back to no-op GPU path\n");
 		}
 	}
 
 	if (cudaInitialized)
+	{
 		CUDARenderer_OnResize(m_CUDAState, width, height);
+		fprintf(stdout, "[CUDA] OnResize: %ux%u\n", width, height);
+	}
 #endif
 
 	m_FrameIndex = 1;
@@ -430,6 +439,7 @@ void Renderer::RenderGPU(const Scene& scene, const Camera& camera)
 	);
 
 	// Launch CUDA render kernel
+	fprintf(stdout, "[CUDA] Render frame %u (%ux%u)\n", m_FrameIndex, width, height);
 	CUDARenderer_Render(m_CUDAState, m_FrameIndex);
 
 	// Download output image from GPU
@@ -438,6 +448,14 @@ void Renderer::RenderGPU(const Scene& scene, const Camera& camera)
 		m_ImageData,
 		width * height * sizeof(uint32_t)
 	);
+
+	// Diagnostic: sample center pixel
+	if (width > 0 && height > 0)
+	{
+		uint32_t centerIdx = (height/2) * width + (width/2);
+		fprintf(stdout, "[CUDA] Output pixel[%u,%u] = 0x%08X\n",
+			width/2, height/2, m_ImageData[centerIdx]);
+	}
 }
 
 #endif // WL_CUDA
