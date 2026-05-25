@@ -60,7 +60,6 @@ project "RayTracing"
 
       -- Custom build rule for .cu files using NVCC
       filter "files:**.cu"
-         compileas "Cuda"
          buildmessage "Compiling %{file.relpath} with NVCC"
          buildcommands {
             '"' .. cudaPath .. '/bin/nvcc"'

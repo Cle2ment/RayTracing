@@ -348,15 +348,33 @@ Renderer::HitPayLoad Renderer::Miss(const Ray& ray)
 
 void Renderer::UploadSceneToGPU(const Scene& scene)
 {
-	// Pack CPU scene data into GPU-compatible flat arrays
-	PackSpheres(
-		*reinterpret_cast<const std::vector<CPUSphere>*>(&scene.Spheres),
-		m_GPUSpheres
-	);
-	PackMaterials(
-		*reinterpret_cast<const std::vector<CPUMaterial>*>(&scene.Materials),
-		m_GPUMaterials
-	);
+	// Pack Sphere data (glm::vec3 → float[3] for GPU compatibility)
+	m_GPUSpheres.resize(scene.Spheres.size());
+	for (size_t i = 0; i < scene.Spheres.size(); i++)
+	{
+		const auto& s = scene.Spheres[i];
+		m_GPUSpheres[i].Position[0] = s.Position.x;
+		m_GPUSpheres[i].Position[1] = s.Position.y;
+		m_GPUSpheres[i].Position[2] = s.Position.z;
+		m_GPUSpheres[i].Radius = s.Radius;
+		m_GPUSpheres[i].MaterialIndex = s.MaterialIndex;
+	}
+
+	// Pack Material data
+	m_GPUMaterials.resize(scene.Materials.size());
+	for (size_t i = 0; i < scene.Materials.size(); i++)
+	{
+		const auto& m = scene.Materials[i];
+		m_GPUMaterials[i].Albedo[0] = m.Albedo.x;
+		m_GPUMaterials[i].Albedo[1] = m.Albedo.y;
+		m_GPUMaterials[i].Albedo[2] = m.Albedo.z;
+		m_GPUMaterials[i].Roughness = m.Roughness;
+		m_GPUMaterials[i].Metallic = m.Metallic;
+		m_GPUMaterials[i].EmissionColor[0] = m.EmissionColor.x;
+		m_GPUMaterials[i].EmissionColor[1] = m.EmissionColor.y;
+		m_GPUMaterials[i].EmissionColor[2] = m.EmissionColor.z;
+		m_GPUMaterials[i].EmissionPower = m.EmissionPower;
+	}
 
 	CUDARenderer_UploadScene(
 		m_CUDAState,

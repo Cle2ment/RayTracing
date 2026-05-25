@@ -57,31 +57,15 @@ void CUDARenderer_SetSettings(
 #endif
 
 // ──────────────────────────────────────────────
-// C++ Wrapper (optional, for convenience)
+// C++ Wrapper: GPU-compatible packed data types
+// These must match CUDATypes.cuh layout EXACTLY
 // ──────────────────────────────────────────────
 
 #ifdef __cplusplus
 
-#include <glm/glm.hpp>
-#include <vector>
+#include <cstdint>
 
-struct CPUMaterial
-{
-    glm::vec3 Albedo{ 1.0f };
-    float     Roughness = 1.0f;
-    float     Metallic = 0.0f;
-    glm::vec3 EmissionColor{ 0.0f };
-    float     EmissionPower = 0.0f;
-};
-
-struct CPUSphere
-{
-    glm::vec3 Position{ 0.0f };
-    float     Radius = 0.5f;
-    int       MaterialIndex = 0;
-};
-
-// GPU-compatible packed versions (must match CUDATypes.cuh layout exactly)
+// Memory layout must match GPUSphere in CUDATypes.cuh
 struct GPUPackedSphere
 {
     float Position[3];
@@ -89,6 +73,7 @@ struct GPUPackedSphere
     int   MaterialIndex;
 };
 
+// Memory layout must match GPUMaterial in CUDATypes.cuh
 struct GPUPackedMaterial
 {
     float Albedo[3];
@@ -97,37 +82,5 @@ struct GPUPackedMaterial
     float EmissionColor[3];
     float EmissionPower;
 };
-
-inline void PackSpheres(const std::vector<CPUSphere>& cpuSpheres,
-                        std::vector<GPUPackedSphere>& gpuSpheres)
-{
-    gpuSpheres.resize(cpuSpheres.size());
-    for (size_t i = 0; i < cpuSpheres.size(); i++)
-    {
-        gpuSpheres[i].Position[0] = cpuSpheres[i].Position.x;
-        gpuSpheres[i].Position[1] = cpuSpheres[i].Position.y;
-        gpuSpheres[i].Position[2] = cpuSpheres[i].Position.z;
-        gpuSpheres[i].Radius = cpuSpheres[i].Radius;
-        gpuSpheres[i].MaterialIndex = cpuSpheres[i].MaterialIndex;
-    }
-}
-
-inline void PackMaterials(const std::vector<CPUMaterial>& cpuMaterials,
-                          std::vector<GPUPackedMaterial>& gpuMaterials)
-{
-    gpuMaterials.resize(cpuMaterials.size());
-    for (size_t i = 0; i < cpuMaterials.size(); i++)
-    {
-        gpuMaterials[i].Albedo[0] = cpuMaterials[i].Albedo.x;
-        gpuMaterials[i].Albedo[1] = cpuMaterials[i].Albedo.y;
-        gpuMaterials[i].Albedo[2] = cpuMaterials[i].Albedo.z;
-        gpuMaterials[i].Roughness = cpuMaterials[i].Roughness;
-        gpuMaterials[i].Metallic = cpuMaterials[i].Metallic;
-        gpuMaterials[i].EmissionColor[0] = cpuMaterials[i].EmissionColor.x;
-        gpuMaterials[i].EmissionColor[1] = cpuMaterials[i].EmissionColor.y;
-        gpuMaterials[i].EmissionColor[2] = cpuMaterials[i].EmissionColor.z;
-        gpuMaterials[i].EmissionPower = cpuMaterials[i].EmissionPower;
-    }
-}
 
 #endif // __cplusplus
