@@ -9,11 +9,11 @@
 
 ## Description
 
-A real-time interactive path tracer built with C++20 and the Walnut application framework. **GPU-accelerated via NVIDIA CUDA** on the `nv-render` branch — the entire path tracing pipeline (ray generation, intersection, shading, accumulation) runs on the GPU for orders-of-magnitude faster rendering.
+A real-time interactive path tracer built with C++20 and the Walnut application framework. **GPU-accelerated via NVIDIA CUDA** — the entire path tracing pipeline (ray generation, intersection, shading, accumulation) runs on the GPU. Falls back to CPU multi-threaded rendering when CUDA is not available.
 
 ### Architecture
 
-| Component | CPU Path (`master`) | GPU Path (`nv-render`) |
+| Component | Multi-Threaded CPU | GPU (CUDA) |
 |-----------|---------------------|------------------------|
 | Ray Generation | `std::execution::par` across CPU threads | CUDA kernel — one thread per pixel |
 | Ray-Sphere Intersection | Brute-force loop (CPU) | `__device__` function (GPU) |
@@ -27,27 +27,21 @@ A real-time interactive path tracer built with C++20 and the Walnut application 
 
 ## Requirements
 
-### GPU Rendering (`nv-render` branch)
-- **NVIDIA GPU** with Compute Capability ≥ 7.5（支持 Turing / Ampere / Ada / Blackwell）
+- **NVIDIA GPU**（可选）with Compute Capability ≥ 7.5（Turing / Ampere / Ada / Blackwell）
   - sm_75: GTX 16xx, RTX 20xx
   - sm_86: RTX 30xx
   - sm_89: RTX 40xx
   - sm_120: RTX 50xx
-- **CUDA Toolkit 12.0+**（推荐 13.x）
+- **CUDA Toolkit 12.0+**（可选，推荐 13.x，用于 GPU 加速）
 - **Vulkan SDK 1.4+**
 - **Visual Studio 2026**（或 2022，向下兼容）with C++20 support
-
-### CPU Rendering (`master` branch)
-- **Vulkan SDK 1.3+**
-- **Visual Studio 2026**（或 2022，向下兼容）
 
 ## How To Build
 
 ### 1. Clone the Repository
 ```bash
-git clone --recursive https://github.com/BoningtonChen/RayTracing.git
+git clone --recursive https://github.com/Cle2ment/RayTracing.git
 cd RayTracing
-git checkout nv-render  # For GPU-accelerated version
 ```
 
 ### 2. Install Dependencies
@@ -59,13 +53,13 @@ git checkout nv-render  # For GPU-accelerated version
 cd scripts
 Setup.bat
 ```
-This runs Premake5 to generate Visual Studio 2022 solution files. The build system automatically detects CUDA and enables GPU acceleration.
+This runs Premake5 to generate Visual Studio 2026 solution files. The build system automatically detects CUDA and enables GPU acceleration.
 
 ### 4. Build & Run
 Open `RayTracing.slnx` in Visual Studio 2026 and build (Release or Dist mode recommended for performance).
 
 ### Build Without CUDA
-If CUDA Toolkit is not installed, the project builds as a CPU-only path tracer (same as `master` branch). The build system defines `WL_CUDA` only when CUDA is detected.
+If CUDA Toolkit is not installed, the project builds as a CPU-only path tracer using `std::execution::par`. The build system defines `WL_CUDA` only when CUDA is detected.
 
 ## Rendering Pipeline
 
@@ -114,7 +108,7 @@ RayTracing/
 
 ## CI/CD
 
-[![Build (CUDA + Vulkan)](https://github.com/BoningtonChen/RayTracing/actions/workflows/build.yml/badge.svg)](https://github.com/BoningtonChen/RayTracing/actions/workflows/build.yml)
+[![Build (CUDA + Vulkan)](https://github.com/Cle2ment/RayTracing/actions/workflows/build.yml/badge.svg)](https://github.com/Cle2ment/RayTracing/actions/workflows/build.yml)
 
 GitHub Actions builds on every push and pull request:
 - **Windows Server 2022** with CUDA 12.8 + Vulkan SDK
