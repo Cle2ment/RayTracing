@@ -58,105 +58,81 @@ project "RayTracing"
       libdirs { cudaPath .. "/lib/x64" }
       links { "cudart" }
 
+      -- CUDA architecture flags string
+      local cudaArchFlags = getCudaArchFlags()
+
+      -- Shared NVCC command arguments (excluding config-specific flags)
+      local function nvccCommonArgs()
+         return ' -rdc=true'
+            .. ' -lineinfo'
+            .. ' --use_fast_math'
+            .. ' -I"' .. cudaPath .. '/include"'
+            .. ' -I"../Walnut/vendor/imgui"'
+            .. ' -I"../Walnut/vendor/glfw/include"'
+            .. ' -I"../Walnut/vendor/glm"'
+            .. ' -I"../Walnut/Walnut/src"'
+            .. ' -I"%{IncludeDir.VulkanSDK}"'
+            .. ' -DWL_PLATFORM_WINDOWS'
+            .. ' -DWL_CUDA'
+            .. ' ' .. cudaArchFlags
+      end
+
       -- Custom build rule for .cu files using NVCC
       filter "files:**.cu"
-         buildmessage "Compiling %{file.relpath} with NVCC"
-         buildcommands {
-            '"' .. cudaPath .. '/bin/nvcc"'
-            .. ' -ccbin="$(VC_ExecutablePath_x64_x64)"'
-            .. ' -Xcompiler="/EHsc /W3 /nologo /FS /Zi /MD"'
-            .. ' -I"' .. cudaPath .. '/include"'
-            .. ' -I"../Walnut/vendor/imgui"'
-            .. ' -I"../Walnut/vendor/glfw/include"'
-            .. ' -I"../Walnut/vendor/glm"'
-            .. ' -I"../Walnut/Walnut/src"'
-            .. ' -I"%{IncludeDir.VulkanSDK}"'
-            .. ' -DWL_PLATFORM_WINDOWS'
-            .. ' -DWL_CUDA'
-            .. getCudaArchFlags()
-            .. ' -lineinfo'
-            .. ' --use_fast_math'
-            .. ' --compile'
-            .. ' -o "%{cfg.objdir}/%{file.basename}.obj"'
-            .. ' "%{file.relpath}"'
-         }
-         buildoutputs { "%{cfg.objdir}/%{file.basename}.obj" }
-      filter {}
 
-      filter { "files:**.cu", "configurations:Debug" }
-         buildmessage "Compiling %{file.relpath} with NVCC (Debug)"
-         buildcommands {
-            '"' .. cudaPath .. '/bin/nvcc"'
-            .. ' -ccbin="$(VC_ExecutablePath_x64_x64)"'
-            .. ' -Xcompiler="/EHsc /W3 /nologo /FS /Zi /MDd"'
-            .. ' -I"' .. cudaPath .. '/include"'
-            .. ' -I"../Walnut/vendor/imgui"'
-            .. ' -I"../Walnut/vendor/glfw/include"'
-            .. ' -I"../Walnut/vendor/glm"'
-            .. ' -I"../Walnut/Walnut/src"'
-            .. ' -I"%{IncludeDir.VulkanSDK}"'
-            .. ' -DWL_PLATFORM_WINDOWS'
-            .. ' -DWL_CUDA'
-            .. ' -DWL_DEBUG'
-            .. getCudaArchFlags()
-            .. ' -lineinfo'
-            .. ' -G'
-            .. ' --compile'
-            .. ' -o "%{cfg.objdir}/%{file.basename}.obj"'
-            .. ' "%{file.relpath}"'
+         -- Ensure output directory exists before NVCC runs
+         prebuildcommands {
+            '{MKDIR} "%{cfg.objdir}"'
          }
-         buildoutputs { "%{cfg.objdir}/%{file.basename}.obj" }
-      filter {}
 
-      filter { "files:**.cu", "configurations:Release" }
-         buildmessage "Compiling %{file.relpath} with NVCC (Release)"
-         buildcommands {
-            '"' .. cudaPath .. '/bin/nvcc"'
-            .. ' -ccbin="$(VC_ExecutablePath_x64_x64)"'
-            .. ' -Xcompiler="/EHsc /W3 /nologo /FS /Zi /MD"'
-            .. ' -I"' .. cudaPath .. '/include"'
-            .. ' -I"../Walnut/vendor/imgui"'
-            .. ' -I"../Walnut/vendor/glfw/include"'
-            .. ' -I"../Walnut/vendor/glm"'
-            .. ' -I"../Walnut/Walnut/src"'
-            .. ' -I"%{IncludeDir.VulkanSDK}"'
-            .. ' -DWL_PLATFORM_WINDOWS'
-            .. ' -DWL_CUDA'
-            .. ' -DWL_RELEASE'
-            .. getCudaArchFlags()
-            .. ' -lineinfo'
-            .. ' --use_fast_math'
-            .. ' -O2'
-            .. ' --compile'
-            .. ' -o "%{cfg.objdir}/%{file.basename}.obj"'
-            .. ' "%{file.relpath}"'
-         }
-         buildoutputs { "%{cfg.objdir}/%{file.basename}.obj" }
-      filter {}
+         -- Debug
+         filter "configurations:Debug"
+            buildmessage "Compiling %{file.relpath} with NVCC (Debug)"
+            buildcommands {
+               '"' .. cudaPath .. '/bin/nvcc"'
+               .. ' -ccbin="$(VCToolsInstallDir)bin\\Hostx64\\x64"'
+               .. ' -Xcompiler "/EHsc,/W3,/nologo,/Zi,/MDd"'
+               .. ' -G'
+               .. ' -DWL_DEBUG'
+               .. nvccCommonArgs()
+               .. ' --compile'
+               .. ' -o "%{cfg.objdir}\\%{file.basename}.obj"'
+               .. ' "%{file.relpath}"'
+            }
+            buildoutputs { "%{cfg.objdir}\\%{file.basename}.obj" }
 
-      filter { "files:**.cu", "configurations:Dist" }
-         buildmessage "Compiling %{file.relpath} with NVCC (Dist)"
-         buildcommands {
-            '"' .. cudaPath .. '/bin/nvcc"'
-            .. ' -ccbin="$(VC_ExecutablePath_x64_x64)"'
-            .. ' -Xcompiler="/EHsc /W3 /nologo /FS /MD"'
-            .. ' -I"' .. cudaPath .. '/include"'
-            .. ' -I"../Walnut/vendor/imgui"'
-            .. ' -I"../Walnut/vendor/glfw/include"'
-            .. ' -I"../Walnut/vendor/glm"'
-            .. ' -I"../Walnut/Walnut/src"'
-            .. ' -I"%{IncludeDir.VulkanSDK}"'
-            .. ' -DWL_PLATFORM_WINDOWS'
-            .. ' -DWL_CUDA'
-            .. ' -DWL_DIST'
-            .. getCudaArchFlags()
-            .. ' --use_fast_math'
-            .. ' -O2'
-            .. ' --compile'
-            .. ' -o "%{cfg.objdir}/%{file.basename}.obj"'
-            .. ' "%{file.relpath}"'
-         }
-         buildoutputs { "%{cfg.objdir}/%{file.basename}.obj" }
+         -- Release
+         filter "configurations:Release"
+            buildmessage "Compiling %{file.relpath} with NVCC (Release)"
+            buildcommands {
+               '"' .. cudaPath .. '/bin/nvcc"'
+               .. ' -ccbin="$(VCToolsInstallDir)bin\\Hostx64\\x64"'
+               .. ' -Xcompiler "/EHsc,/W3,/nologo,/Zi,/MD"'
+               .. ' -O2'
+               .. ' -DWL_RELEASE'
+               .. nvccCommonArgs()
+               .. ' --compile'
+               .. ' -o "%{cfg.objdir}\\%{file.basename}.obj"'
+               .. ' "%{file.relpath}"'
+            }
+            buildoutputs { "%{cfg.objdir}\\%{file.basename}.obj" }
+
+         -- Dist
+         filter "configurations:Dist"
+            buildmessage "Compiling %{file.relpath} with NVCC (Dist)"
+            buildcommands {
+               '"' .. cudaPath .. '/bin/nvcc"'
+               .. ' -ccbin="$(VCToolsInstallDir)bin\\Hostx64\\x64"'
+               .. ' -Xcompiler "/EHsc,/W3,/nologo,/MD"'
+               .. ' -O2'
+               .. ' -DWL_DIST'
+               .. nvccCommonArgs()
+               .. ' --compile'
+               .. ' -o "%{cfg.objdir}\\%{file.basename}.obj"'
+               .. ' "%{file.relpath}"'
+            }
+            buildoutputs { "%{cfg.objdir}\\%{file.basename}.obj" }
+
       filter {}
    end
 
