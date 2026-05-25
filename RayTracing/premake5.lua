@@ -1,6 +1,18 @@
--- CUDA Toolkit Detection
-local cudaPath = os.getenv("CUDA_PATH") or os.getenv("CUDA_PATH_V12_8") or os.getenv("CUDA_PATH_V12_6") or os.getenv("CUDA_PATH_V12_5") or os.getenv("CUDA_PATH_V12_4") or os.getenv("CUDA_PATH_V11_8") or "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.8"
-local cudaFound = os.isdir(cudaPath)
+-- CUDA Toolkit Detection (environment variable only, no hardcoded paths)
+local cudaPath = os.getenv("CUDA_PATH")
+   or os.getenv("CUDA_PATH_V13_2")
+   or os.getenv("CUDA_PATH_V12_8")
+   or os.getenv("CUDA_PATH_V12_6")
+   or os.getenv("CUDA_PATH_V12_5")
+   or os.getenv("CUDA_PATH_V12_4")
+   or os.getenv("CUDA_PATH_V11_8")
+local cudaFound = cudaPath ~= nil and os.isdir(cudaPath)
+
+if not cudaFound then
+   print("NOTE: CUDA_PATH not set or invalid. Building CPU-only path tracer.")
+   print("      To enable GPU acceleration, set CUDA_PATH to your CUDA Toolkit directory.")
+   print("      Example: setx CUDA_PATH \"C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v13.2\"")
+end
 
 -- CUDA Architecture Targets (virtual + real)
 -- sm_75: Turing (RTX 20xx, GTX 16xx)
@@ -58,80 +70,60 @@ project "RayTracing"
       libdirs { cudaPath .. "/lib/x64" }
       links { "cudart" }
 
-      -- CUDA architecture flags string
+      -- CUDA architecture flags
       local cudaArchFlags = getCudaArchFlags()
 
-      -- Shared NVCC command arguments (excluding config-specific flags)
-      local function nvccCommonArgs()
-         return ' -rdc=true'
-            .. ' -lineinfo'
-            .. ' --use_fast_math'
-            .. ' -I"' .. cudaPath .. '/include"'
-            .. ' -I"../Walnut/vendor/imgui"'
-            .. ' -I"../Walnut/vendor/glfw/include"'
-            .. ' -I"../Walnut/vendor/glm"'
-            .. ' -I"../Walnut/Walnut/src"'
-            .. ' -I"%{IncludeDir.VulkanSDK}"'
-            .. ' -DWL_PLATFORM_WINDOWS'
-            .. ' -DWL_CUDA'
-            .. ' ' .. cudaArchFlags
-      end
+      -- Shared NVCC arguments (MSBuild tokens: %(FullPath), $(IntDir), etc.)
+      local nvccBase = '"' .. cudaPath .. '/bin/nvcc"'
+         .. ' -ccbin="$(VCToolsInstallDir)bin\\Hostx64\\x64"'
+         .. ' -rdc=true -lineinfo --use_fast_math'
+         .. ' -I"' .. cudaPath .. '/include"'
+         .. ' -I"' .. path.getabsolute("../Walnut/vendor/imgui") .. '"'
+         .. ' -I"' .. path.getabsolute("../Walnut/vendor/glfw/include") .. '"'
+         .. ' -I"' .. path.getabsolute("../Walnut/vendor/glm") .. '"'
+         .. ' -I"' .. path.getabsolute("../Walnut/Walnut/src") .. '"'
+         .. ' -I"%{IncludeDir.VulkanSDK}"'
+         .. ' -DWL_PLATFORM_WINDOWS -DWL_CUDA'
+         .. ' ' .. cudaArchFlags
 
-      -- Custom build rule for .cu files using NVCC
+      -- Custom build rule for .cu files
       filter "files:**.cu"
 
-         -- Ensure output directory exists before NVCC runs
-         prebuildcommands {
-            '{MKDIR} "%{cfg.objdir}"'
-         }
-
-         -- Debug
          filter "configurations:Debug"
-            buildmessage "Compiling %{file.relpath} with NVCC (Debug)"
+            buildmessage "Compiling %(Filename).cu (NVCC Debug)"
             buildcommands {
-               '"' .. cudaPath .. '/bin/nvcc"'
-               .. ' -ccbin="$(VCToolsInstallDir)bin\\Hostx64\\x64"'
+               nvccBase
                .. ' -Xcompiler "/EHsc,/W3,/nologo,/Zi,/MDd"'
-               .. ' -G'
-               .. ' -DWL_DEBUG'
-               .. nvccCommonArgs()
+               .. ' -G -DWL_DEBUG'
                .. ' --compile'
-               .. ' -o "%{cfg.objdir}\\%{file.basename}.obj"'
-               .. ' "%{file.relpath}"'
+               .. ' -o "$(IntDir)%(Filename).obj"'
+               .. ' "%(FullPath)"'
             }
-            buildoutputs { "%{cfg.objdir}\\%{file.basename}.obj" }
+            buildoutputs { "$(IntDir)%(Filename).obj" }
 
-         -- Release
          filter "configurations:Release"
-            buildmessage "Compiling %{file.relpath} with NVCC (Release)"
+            buildmessage "Compiling %(Filename).cu (NVCC Release)"
             buildcommands {
-               '"' .. cudaPath .. '/bin/nvcc"'
-               .. ' -ccbin="$(VCToolsInstallDir)bin\\Hostx64\\x64"'
+               nvccBase
                .. ' -Xcompiler "/EHsc,/W3,/nologo,/Zi,/MD"'
-               .. ' -O2'
-               .. ' -DWL_RELEASE'
-               .. nvccCommonArgs()
+               .. ' -O2 -DWL_RELEASE'
                .. ' --compile'
-               .. ' -o "%{cfg.objdir}\\%{file.basename}.obj"'
-               .. ' "%{file.relpath}"'
+               .. ' -o "$(IntDir)%(Filename).obj"'
+               .. ' "%(FullPath)"'
             }
-            buildoutputs { "%{cfg.objdir}\\%{file.basename}.obj" }
+            buildoutputs { "$(IntDir)%(Filename).obj" }
 
-         -- Dist
          filter "configurations:Dist"
-            buildmessage "Compiling %{file.relpath} with NVCC (Dist)"
+            buildmessage "Compiling %(Filename).cu (NVCC Dist)"
             buildcommands {
-               '"' .. cudaPath .. '/bin/nvcc"'
-               .. ' -ccbin="$(VCToolsInstallDir)bin\\Hostx64\\x64"'
+               nvccBase
                .. ' -Xcompiler "/EHsc,/W3,/nologo,/MD"'
-               .. ' -O2'
-               .. ' -DWL_DIST'
-               .. nvccCommonArgs()
+               .. ' -O2 -DWL_DIST'
                .. ' --compile'
-               .. ' -o "%{cfg.objdir}\\%{file.basename}.obj"'
-               .. ' "%{file.relpath}"'
+               .. ' -o "$(IntDir)%(Filename).obj"'
+               .. ' "%(FullPath)"'
             }
-            buildoutputs { "%{cfg.objdir}\\%{file.basename}.obj" }
+            buildoutputs { "$(IntDir)%(Filename).obj" }
 
       filter {}
    end
