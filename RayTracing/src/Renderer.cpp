@@ -438,9 +438,9 @@ void Renderer::RenderGPU(const Scene& scene, const Camera& camera)
 		static_cast<int>(m_Settings.Accumulate)
 	);
 
-	// Launch CUDA render kernel
-	fprintf(stdout, "[CUDA] Render frame %u (%ux%u)\n", m_FrameIndex, width, height);
-	CUDARenderer_Render(m_CUDAState, m_FrameIndex);
+	// DEBUG: Fill with checkerboard to verify output pipeline works
+	CUDARenderer_DebugFill(m_CUDAState);
+	// CUDARenderer_Render(m_CUDAState, m_FrameIndex);
 
 	// Download output image from GPU
 	CUDARenderer_GetOutput(

@@ -234,6 +234,25 @@ void CUDARenderer_SetSettings(
     state->gpuSettings.Accumulate = (accumulate != 0);
 }
 
+void CUDARenderer_DebugFill(CUDARenderState* state)
+{
+    if (!state || !state->initialized || state->pixelCount == 0) return;
+
+    dim3 blockDim(16, 16);
+    dim3 gridDim(
+        (state->imageWidth + blockDim.x - 1) / blockDim.x,
+        (state->imageHeight + blockDim.y - 1) / blockDim.y
+    );
+
+    DebugFillKernel<<<gridDim, blockDim>>>(
+        state->d_OutputImage,
+        state->imageWidth,
+        state->imageHeight
+    );
+
+    cudaDeviceSynchronize();
+}
+
 void CUDARenderer_CheckError(const char* file, int line)
 {
     cudaError_t err = cudaGetLastError();

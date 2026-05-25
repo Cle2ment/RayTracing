@@ -52,6 +52,9 @@ void CUDARenderer_SetSettings(
     CUDARenderState* state,
     int maxBounces, int accumulate);
 
+// Debug: fills output with checkerboard test pattern
+void CUDARenderer_DebugFill(CUDARenderState* state);
+
 #ifdef __cplusplus
 }
 #endif

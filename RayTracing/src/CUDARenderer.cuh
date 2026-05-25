@@ -316,3 +316,32 @@ __global__ void ClearAccumulationKernel(
 
     accumulationBuffer[idx] = make_float4(0, 0, 0, 0);
 }
+
+// ──────────────────────────────────────────────
+// Diagnostic kernel: fills output with test gradient
+// Red = x/width, Green = y/height, checkerboard if (x/16 + y/16) % 2
+// ──────────────────────────────────────────────
+
+__global__ void DebugFillKernel(
+    uint32_t* __restrict__ outputImage,
+    uint32_t imageWidth,
+    uint32_t imageHeight)
+{
+    uint32_t x = blockIdx.x * blockDim.x + threadIdx.x;
+    uint32_t y = blockIdx.y * blockDim.y + threadIdx.y;
+
+    if (x >= imageWidth || y >= imageHeight)
+        return;
+
+    uint32_t pixelIndex = x + y * imageWidth;
+
+    // Checkerboard pattern to verify output pipeline
+    bool checker = ((x / 16) + (y / 16)) % 2 == 0;
+
+    uint8_t r = checker ? 255 : 0;
+    uint8_t g = checker ? 0 : 255;
+    uint8_t b = 128;
+    uint8_t a = 255;
+
+    outputImage[pixelIndex] = (a << 24) | (b << 16) | (g << 8) | r;
+}
