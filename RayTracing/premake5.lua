@@ -70,6 +70,9 @@ project "RayTracing"
       libdirs { cudaPath .. "/lib/x64" }
       links { "cudart" }
 
+      -- Explicitly add NVCC output .obj to linker inputs
+      linkoptions { '"$(IntDir)CUDARenderer.obj"' }
+
       -- CUDA architecture flags
       local cudaArchFlags = getCudaArchFlags()
 
