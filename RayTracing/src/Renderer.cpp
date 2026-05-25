@@ -438,8 +438,23 @@ void Renderer::RenderGPU(const Scene& scene, const Camera& camera)
 		static_cast<int>(m_Settings.Accumulate)
 	);
 
+	// PHASE 1: Bypass CUDA entirely — CPU fills m_ImageData directly
+	for (uint32_t y = 0; y < height; y++)
+	{
+		for (uint32_t x = 0; x < width; x++)
+		{
+			bool checker = ((x / 16) + (y / 16)) % 2 == 0;
+			uint8_t r = checker ? 255 : 0;
+			uint8_t g = checker ? 0 : 255;
+			uint8_t b = 128;
+			uint8_t a = 255;
+			m_ImageData[x + y * width] = (a << 24) | (b << 16) | (g << 8) | r;
+		}
+	}
+	return; // Skip CUDA entirely for pipeline test
+
 	// DEBUG: Fill with checkerboard to verify output pipeline works
-	CUDARenderer_DebugFill(m_CUDAState);
+	// CUDARenderer_DebugFill(m_CUDAState);
 	// CUDARenderer_Render(m_CUDAState, m_FrameIndex);
 
 	// Download output image from GPU
