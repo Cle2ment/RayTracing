@@ -1,0 +1,108 @@
+name: Build (CUDA + Vulkan)
+
+on:
+  push:
+    branches: [ master, nv-render ]
+  pull_request:
+    branches: [ master ]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build (${{ matrix.configuration }})
+    runs-on: windows-2022
+
+    strategy:
+      fail-fast: false
+      matrix:
+        configuration: [ Debug, Release ]
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Setup CUDA Toolkit
+        uses: Jimver/cuda-toolkit@v0.2.21
+        with:
+          cuda: '12.8'
+          method: 'network'
+          sub-packages: '[]'
+          non-cuda-sub-packages: '[]'
+
+      - name: Verify CUDA Installation
+        shell: pwsh
+        run: |
+          nvcc --version
+          echo "CUDA_PATH=$env:CUDA_PATH"
+          echo "CUDA_PATH_V12_8=$env:CUDA_PATH_V12_8"
+
+      - name: Setup Vulkan SDK
+        shell: pwsh
+        run: |
+          $vulkanVersion = "1.4.309.0"
+          $installerUrl = "https://sdk.lunarg.com/sdk/download/$vulkanVersion/windows/VulkanSDK-$vulkanVersion-Installer.exe"
+          $installerPath = "$env:RUNNER_TEMP\VulkanSDK.exe"
+          Invoke-WebRequest -Uri $installerUrl -OutFile $installerPath
+          Start-Process -FilePath $installerPath -ArgumentList "--accept-licenses --default-answer --confirm-command install" -Wait -NoNewWindow
+          echo "VULKAN_SDK=C:\VulkanSDK\$vulkanVersion" >> $env:GITHUB_ENV
+
+      - name: Setup Premake5
+        shell: pwsh
+        run: |
+          $premakeVersion = "5.0.0-beta2"
+          $premakeUrl = "https://github.com/premake/premake-core/releases/download/v$premakeVersion/premake-$premakeVersion-windows.zip"
+          $premakeZip = "$env:RUNNER_TEMP\premake.zip"
+          Invoke-WebRequest -Uri $premakeUrl -OutFile $premakeZip
+          Expand-Archive -Path $premakeZip -DestinationPath "$env:RUNNER_TEMP\premake"
+          Copy-Item "$env:RUNNER_TEMP\premake\premake5.exe" -Destination ".\premake5.exe"
+          .\premake5.exe --version
+
+      - name: Generate Project Files
+        shell: pwsh
+        run: |
+          .\premake5.exe vs2026
+
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: amd64
+
+      - name: Build (Debug)
+        if: matrix.configuration == 'Debug'
+        shell: pwsh
+        run: |
+          msbuild RayTracing.slnx /p:Configuration=Debug /p:Platform=x64 /m /v:minimal
+
+      - name: Build (Release)
+        if: matrix.configuration == 'Release'
+        shell: pwsh
+        run: |
+          msbuild RayTracing.slnx /p:Configuration=Release /p:Platform=x64 /m /v:minimal
+
+      - name: Verify Build Output
+        shell: pwsh
+        run: |
+          $config = '${{ matrix.configuration }}'
+          $buildDir = "bin\$config-windows-x86_64\RayTracing"
+          if (Test-Path $buildDir) {
+            Write-Host "Build output directory exists: $buildDir"
+            Get-ChildItem $buildDir -Recurse | ForEach-Object { Write-Host $_.FullName }
+          } else {
+            Write-Host "Searching for build output..."
+            Get-ChildItem bin -Recurse -Filter "*.exe" | ForEach-Object { Write-Host $_.FullName }
+          }
+
+      - name: Upload Build Artifacts
+        if: matrix.configuration == 'Release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: RayTracing-Release
+          path: bin/Release-windows-x86_64/RayTracing/
+          if-no-files-found: warn
