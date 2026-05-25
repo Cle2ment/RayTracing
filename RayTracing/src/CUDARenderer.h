@@ -65,6 +65,12 @@ void CUDARenderer_SetSettings(
 
 #include <cstdint>
 
+// C++-compatible float3 (matches CUDA float3 layout: 12 bytes, alignment 4)
+struct float3
+{
+    float x, y, z;
+};
+
 // Memory layout must match GPUSphere in CUDATypes.cuh
 struct GPUPackedSphere
 {
