@@ -219,18 +219,11 @@ void CUDARenderer_GetOutput(
     CUDARenderState* state,
     void* hostOutput, uint32_t byteSize)
 {
-    if (!state || !state->initialized || !state->d_OutputImage) {
-        fprintf(stderr, "[CUDA] GetOutput: state=%p init=%d d_OutputImage=%p\n",
-            static_cast<void*>(state),
-            state ? state->initialized : 0,
-            state ? static_cast<void*>(state->d_OutputImage) : nullptr);
+    if (!state || !state->initialized || !state->d_OutputImage)
         return;
-    }
 
-    cudaError_t err = cudaMemcpy(hostOutput, state->d_OutputImage,
+    cudaMemcpy(hostOutput, state->d_OutputImage,
                byteSize, cudaMemcpyDeviceToHost);
-    if (err != cudaSuccess)
-        fprintf(stderr, "[CUDA] GetOutput cudaMemcpy error: %s\n", cudaGetErrorString(err));
 }
 
 void CUDARenderer_SetSettings(
@@ -252,24 +245,13 @@ void CUDARenderer_DebugFill(CUDARenderState* state)
         (state->imageHeight + blockDim.y - 1) / blockDim.y
     );
 
-    fprintf(stdout, "[CUDA] DebugFill launch: grid(%u,%u) block(%u,%u) pixels=%u\n",
-        gridDim.x, gridDim.y, blockDim.x, blockDim.y, state->pixelCount);
-
     DebugFillKernel<<<gridDim, blockDim>>>(
         state->d_OutputImage,
         state->imageWidth,
         state->imageHeight
     );
 
-    cudaError_t launchErr = cudaGetLastError();
-    if (launchErr != cudaSuccess)
-        fprintf(stderr, "[CUDA] DebugFill launch error: %s\n", cudaGetErrorString(launchErr));
-
-    cudaError_t syncErr = cudaDeviceSynchronize();
-    if (syncErr != cudaSuccess)
-        fprintf(stderr, "[CUDA] DebugFill sync error: %s\n", cudaGetErrorString(syncErr));
-    else
-        fprintf(stdout, "[CUDA] DebugFill kernel completed successfully\n");
+    cudaDeviceSynchronize();
 }
 
 void CUDARenderer_CheckError(const char* file, int line)
