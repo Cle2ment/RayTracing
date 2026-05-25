@@ -41,7 +41,7 @@ project "RayTracing"
 
    files { "src/**.h", "src/**.cpp" }
    if cudaFound then
-      files { "src/**.cu", "src/**.cuh" }
+      files { "src/**.cuh" }
    end
 
    includedirs
@@ -73,8 +73,9 @@ project "RayTracing"
       -- CUDA architecture flags
       local cudaArchFlags = getCudaArchFlags()
 
-      -- Shared NVCC arguments (MSBuild tokens: %(FullPath), $(IntDir), etc.)
-      local nvccBase = '"' .. cudaPath .. '/bin/nvcc"'
+      -- Pre-build step: compile .cu files with NVCC → .obj in $(IntDir)
+      -- Linker automatically picks up all .obj files from $(IntDir)
+      local nvccCmd = '"' .. cudaPath .. '/bin/nvcc"'
          .. ' -ccbin="$(VCToolsInstallDir)bin\\Hostx64\\x64"'
          .. ' -rdc=true -lineinfo --use_fast_math'
          .. ' -I"' .. cudaPath .. '/include"'
@@ -86,46 +87,35 @@ project "RayTracing"
          .. ' -DWL_PLATFORM_WINDOWS -DWL_CUDA'
          .. ' ' .. cudaArchFlags
 
-      -- Custom build rule for .cu files
-      filter "files:**.cu"
+      filter "configurations:Debug"
+         prebuildcommands {
+            nvccCmd
+            .. ' -Xcompiler "/EHsc,/W3,/nologo,/Zi,/MDd"'
+            .. ' -G -DWL_DEBUG'
+            .. ' --compile'
+            .. ' -o "$(IntDir)CUDARenderer.obj"'
+            .. ' "src\\CUDARenderer.cu"'
+         }
 
-         filter "configurations:Debug"
-            buildmessage "Compiling %(Filename).cu (NVCC Debug)"
-            buildcommands {
-               nvccBase
-               .. ' -Xcompiler "/EHsc,/W3,/nologo,/Zi,/MDd"'
-               .. ' -G -DWL_DEBUG'
-               .. ' --compile'
-               .. ' -o "$(IntDir)%(Filename).obj"'
-               .. ' "%(FullPath)"'
-            }
-            buildoutputs { "$(IntDir)%(Filename).obj" }
+      filter "configurations:Release"
+         prebuildcommands {
+            nvccCmd
+            .. ' -Xcompiler "/EHsc,/W3,/nologo,/Zi,/MD"'
+            .. ' -O2 -DWL_RELEASE'
+            .. ' --compile'
+            .. ' -o "$(IntDir)CUDARenderer.obj"'
+            .. ' "src\\CUDARenderer.cu"'
+         }
 
-         filter "configurations:Release"
-            buildmessage "Compiling %(Filename).cu (NVCC Release)"
-            buildcommands {
-               nvccBase
-               .. ' -Xcompiler "/EHsc,/W3,/nologo,/Zi,/MD"'
-               .. ' -O2 -DWL_RELEASE'
-               .. ' --compile'
-               .. ' -o "$(IntDir)%(Filename).obj"'
-               .. ' "%(FullPath)"'
-            }
-            buildoutputs { "$(IntDir)%(Filename).obj" }
-
-         filter "configurations:Dist"
-            buildmessage "Compiling %(Filename).cu (NVCC Dist)"
-            buildcommands {
-               nvccBase
-               .. ' -Xcompiler "/EHsc,/W3,/nologo,/MD"'
-               .. ' -O2 -DWL_DIST'
-               .. ' --compile'
-               .. ' -o "$(IntDir)%(Filename).obj"'
-               .. ' "%(FullPath)"'
-            }
-            buildoutputs { "$(IntDir)%(Filename).obj" }
-
-      filter {}
+      filter "configurations:Dist"
+         prebuildcommands {
+            nvccCmd
+            .. ' -Xcompiler "/EHsc,/W3,/nologo,/MD"'
+            .. ' -O2 -DWL_DIST'
+            .. ' --compile'
+            .. ' -o "$(IntDir)CUDARenderer.obj"'
+            .. ' "src\\CUDARenderer.cu"'
+         }
    end
 
    filter "system:windows"
