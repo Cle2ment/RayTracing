@@ -28,8 +28,12 @@ A real-time interactive path tracer built with C++20 and the Walnut application 
 ## Requirements
 
 ### GPU Rendering (`nv-render` branch)
-- **NVIDIA GPU** with Compute Capability ≥ 7.5 (Turing: GTX 16xx/RTX 20xx or newer)
-- **CUDA Toolkit 11.8+** (12.x recommended)
+- **NVIDIA GPU** with Compute Capability ≥ 7.5（支持 Turing / Ampere / Ada / Blackwell）
+  - sm_75: GTX 16xx, RTX 20xx
+  - sm_86: RTX 30xx
+  - sm_89: RTX 40xx
+  - sm_120: RTX 50xx
+- **CUDA Toolkit 12.0+**（推荐 13.x）
 - **Vulkan SDK 1.4+**
 - **Visual Studio 2026**（或 2022，向下兼容）with C++20 support
 
@@ -140,6 +144,16 @@ Here is the current demonstration of the project.\
 This is a simple app template for Walnut - unlike the example within the Walnut repository, this keeps Walnut as an external submodule and is much more sensible for actually building applications. See the Walnut repository for more details.
 - Getting Started\
 Once you've cloned, you can customize the `premake5.lua` and `WalnutApp/premake5.lua` files to your liking (eg. change the name from "WalnutApp" to something else). Once you're happy, run `scripts/Setup.bat` to generate Visual Studio 2022 solution/project files. Your app is located in the `WalnutApp/` directory, which some basic example code to get you going in `WalnutApp/src/WalnutApp.cpp`. I recommend modifying that WalnutApp project to create your own application, as everything should be setup and ready to go.
+
+## Troubleshooting
+
+| 现象 | 原因 | 解决 |
+|------|------|------|
+| Viewport 全黑 | CUDA 架构不匹配 | 确认 GPU 型号，检查 `premake5.lua` 中 `cudaArchs` 是否包含对应 `sm_XX` |
+| `no kernel image is available` | nvcc 未为目标 GPU 编译内核 | 添加对应 `-gencode=arch=compute_XX,code=sm_XX` |
+| `CUDA_PATH` 未设置 | 环境变量缺失 | 系统属性 → 环境变量 → 新建 `CUDA_PATH`，指向 CUDA Toolkit 目录 |
+| 构建时 `.cu` 文件未编译 | `CUDA_PATH` 未在生成时生效 | 重启终端，确认 `echo %CUDA_PATH%` 非空后重新 `Setup.bat` |
+| 链接器报 `CUDARenderer_*` 未定义 | `CUDARenderer.obj` 未被链接 | 检查 `premake5.lua` 中 `linkoptions { "$(IntDir)CUDARenderer.obj" }` |
 
 ## LICENSE
 The project uses `MIT License`.
