@@ -31,11 +31,11 @@ A real-time interactive path tracer built with C++20 and the Walnut application 
 - **NVIDIA GPU** with Compute Capability ≥ 7.5 (Turing: GTX 16xx/RTX 20xx or newer)
 - **CUDA Toolkit 11.8+** (12.x recommended)
 - **Vulkan SDK 1.4+**
-- **Visual Studio 2022** (v17.0+) with C++20 support
+- **Visual Studio 2026**（或 2022，向下兼容）with C++20 support
 
 ### CPU Rendering (`master` branch)
 - **Vulkan SDK 1.3+**
-- **Visual Studio 2022**
+- **Visual Studio 2026**（或 2022，向下兼容）
 
 ## How To Build
 
@@ -58,7 +58,7 @@ Setup.bat
 This runs Premake5 to generate Visual Studio 2022 solution files. The build system automatically detects CUDA and enables GPU acceleration.
 
 ### 4. Build & Run
-Open `RayTracing.slnx` in Visual Studio 2022 and build (Release or Dist mode recommended for performance).
+Open `RayTracing.slnx` in Visual Studio 2026 and build (Release or Dist mode recommended for performance).
 
 ### Build Without CUDA
 If CUDA Toolkit is not installed, the project builds as a CPU-only path tracer (same as `master` branch). The build system defines `WL_CUDA` only when CUDA is detected.
