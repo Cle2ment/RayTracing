@@ -6,6 +6,12 @@
 #include <execution>
 #include <limits>
 
+#ifndef WL_CUDA
+
+// ──────────────────────────────────────────────
+// CPU-Only Rendering Path
+// ──────────────────────────────────────────────
+
 namespace Utils
 {
 	static uint32_t ConvertToRGBA(const glm::vec4& color)
@@ -45,18 +51,42 @@ namespace Utils
 	}
 }
 
+#endif // !WL_CUDA
+
+// ──────────────────────────────────────────────
+// Shared: Constructor / Destructor
+// ──────────────────────────────────────────────
+
+Renderer::Renderer()
+{
+#ifdef WL_CUDA
+	m_CUDAState = CUDARenderer_Create();
+#endif
+}
+
 Renderer::~Renderer()
 {
+#ifdef WL_CUDA
+	if (m_CUDAState)
+	{
+		CUDARenderer_Destroy(m_CUDAState);
+		m_CUDAState = nullptr;
+	}
+#endif
 	delete[] m_ImageData;
 	delete[] m_AccumulationData;
 }
+
+// ──────────────────────────────────────────────
+// OnResize (shared between CPU and GPU paths)
+// ──────────────────────────────────────────────
 
 void Renderer::OnResize(uint32_t width, uint32_t height)
 {
 	if (m_FinalImage)
 	{
 		// No resize necessity
-		if (m_FinalImage->GetWidth() == width && m_FinalImage->GetHeight() == height )
+		if (m_FinalImage->GetWidth() == width && m_FinalImage->GetHeight() == height)
 			return;
 
 		m_FinalImage->Resize(width, height);
@@ -64,17 +94,18 @@ void Renderer::OnResize(uint32_t width, uint32_t height)
 	else
 	{
 		m_FinalImage = std::make_shared<Walnut::Image>(
-			width, 
-			height, 
+			width,
+			height,
 			Walnut::ImageFormat::RGBA
 		);
 	}
 
 	delete[] m_ImageData;
 	m_ImageData = new uint32_t[width * height];
+
+#ifndef WL_CUDA
 	delete[] m_AccumulationData;
 	m_AccumulationData = new glm::vec4[width * height];
-	m_FrameIndex = 1;
 
 	m_ImageHorizontalIterator.resize(width);
 	m_ImageVerticalIterator.resize(height);
@@ -83,13 +114,40 @@ void Renderer::OnResize(uint32_t width, uint32_t height)
 		m_ImageHorizontalIterator[i] = i;
 	for (uint32_t i = 0; i < height; i++)
 		m_ImageVerticalIterator[i] = i;
+#endif
+
+#ifdef WL_CUDA
+	// Initialize CUDA on first resize
+	static bool cudaInitialized = false;
+	if (!cudaInitialized && m_CUDAState)
+	{
+		if (CUDARenderer_Init(m_CUDAState))
+		{
+			cudaInitialized = true;
+			CUDARenderer_SetSettings(m_CUDAState, 5, static_cast<int>(m_Settings.Accumulate));
+		}
+	}
+
+	if (cudaInitialized)
+		CUDARenderer_OnResize(m_CUDAState, width, height);
+#endif
+
+	m_FrameIndex = 1;
 }
+
+// ──────────────────────────────────────────────
+// Render dispatch
+// ──────────────────────────────────────────────
 
 void Renderer::Render(const Scene& scene, const Camera& camera)
 {
 	m_ActiveScene = &scene;
 	m_ActiveCamera = &camera;
 
+#ifdef WL_CUDA
+	RenderGPU(scene, camera);
+#else
+	// ── CPU Rendering Path ──
 	if (m_FrameIndex == 1)
 		memset(
 			m_AccumulationData,
@@ -102,26 +160,26 @@ void Renderer::Render(const Scene& scene, const Camera& camera)
 	std::for_each(
 		std::execution::par,
 		m_ImageVerticalIterator.begin(), m_ImageVerticalIterator.end(),
-		[this] (uint32_t y)
+		[this](uint32_t y)
 		{
 			std::ranges::for_each(
 				m_ImageHorizontalIterator.begin(), m_ImageHorizontalIterator.end(),
-				[this, y] (const uint32_t x)
+				[this, y](const uint32_t x)
 				{
 					const glm::vec4 color = PerPixel(x, y);
 
 					m_AccumulationData[x + y * m_FinalImage->GetWidth()] += color;
 
 					glm::vec4 accumulatedColor
-					= m_AccumulationData[x + y * m_FinalImage->GetWidth()];
+						= m_AccumulationData[x + y * m_FinalImage->GetWidth()];
 					accumulatedColor /= static_cast<float>(m_FrameIndex);
 
-					accumulatedColor = glm::clamp( 
+					accumulatedColor = glm::clamp(
 						accumulatedColor,
 						glm::vec4(0.0f), glm::vec4(1.0f)
 					);
 					m_ImageData[x + y * m_FinalImage->GetWidth()]
-					= Utils::ConvertToRGBA(accumulatedColor);
+						= Utils::ConvertToRGBA(accumulatedColor);
 				});
 		});
 #else
@@ -130,21 +188,15 @@ void Renderer::Render(const Scene& scene, const Camera& camera)
 		for (uint32_t x = 0; x < m_FinalImage->GetWidth(); x++)
 		{
 			glm::vec4 color = PerPixel(x, y);
-
 			m_AccumulationData[x + y * m_FinalImage->GetWidth()] += color;
-
 			glm::vec4 accumulatedColor = m_AccumulationData[x + y * m_FinalImage->GetWidth()];
 			accumulatedColor /= static_cast<float>(m_FrameIndex);
-
-			accumulatedColor = glm::clamp(
-				accumulatedColor,
-				glm::vec4(0.0f), glm::vec4(1.0f)
-			);
-			m_ImageData[x + y * m_FinalImage->GetWidth()]
-			= Utils::ConvertToRGBA(accumulatedColor);
+			accumulatedColor = glm::clamp(accumulatedColor, glm::vec4(0.0f), glm::vec4(1.0f));
+			m_ImageData[x + y * m_FinalImage->GetWidth()] = Utils::ConvertToRGBA(accumulatedColor);
 		}
 	}
 #endif
+#endif // !WL_CUDA
 
 	m_FinalImage->SetData(m_ImageData);
 
@@ -153,6 +205,12 @@ void Renderer::Render(const Scene& scene, const Camera& camera)
 	else
 		m_FrameIndex = 1;
 }
+
+// ──────────────────────────────────────────────
+// CPU-Only: PerPixel / TraceRay / ClosestHit / Miss
+// ──────────────────────────────────────────────
+
+#ifndef WL_CUDA
 
 glm::vec4 Renderer::PerPixel(uint32_t x, uint32_t y) const
 {
@@ -173,8 +231,8 @@ glm::vec4 Renderer::PerPixel(uint32_t x, uint32_t y) const
 		seed += i;
 
 		auto [
-			HitDistance, 
-			WorldPosition, 
+			HitDistance,
+			WorldPosition,
 			WorldNormal, ObjectIndex
 		] = TraceRay(ray);
 		if (HitDistance < 0.0f)
@@ -185,13 +243,13 @@ glm::vec4 Renderer::PerPixel(uint32_t x, uint32_t y) const
 		}
 
 		const auto& [
-			Position, 
-			Radius, 
+			Position,
+			Radius,
 			MaterialIndex
 		] = m_ActiveScene->Spheres[ObjectIndex];
 		const Material& material = m_ActiveScene->Materials[MaterialIndex];
 
-		
+
 		contribution *= material.Albedo;
 		light += material.GetEmission();
 
@@ -205,10 +263,6 @@ glm::vec4 Renderer::PerPixel(uint32_t x, uint32_t y) const
 		}
 
 		ray.Origin = WorldPosition + WorldNormal * 0.0001f;
-		// ray.Direction = glm::reflect(
-		// 	 ray.Direction, 
-		//	 payload.WorldNormal + material.Roughness * Walnut::Random::Vec3(-0.5f, 0.5f)
-		//  );
 		if (m_Settings.SlowRandom)
 			ray.Direction = glm::normalize(WorldNormal + Walnut::Random::InUnitSphere());
 		else
@@ -216,7 +270,6 @@ glm::vec4 Renderer::PerPixel(uint32_t x, uint32_t y) const
 	}
 	return { light, 1.0f };
 }
-
 
 Renderer::HitPayLoad Renderer::TraceRay(const Ray& ray) const
 {
@@ -226,28 +279,22 @@ Renderer::HitPayLoad Renderer::TraceRay(const Ray& ray) const
 	for (size_t i = 0; i < m_ActiveScene->Spheres.size(); i++)
 	{
 		const auto& [
-			Position, 
-			Radius, 
+			Position,
+			Radius,
 			MaterialIndex
 		] = m_ActiveScene->Spheres[i];
 		glm::vec3 origin = ray.Origin - Position;
 
-		// (bx^2 + by^2)t^2 + 2(axbx + ayby)t + (ax^2 + ay^2 -r^2) = 0
 		const float a = glm::dot(ray.Direction, ray.Direction);
 		const float b = 2.0f * glm::dot(origin, ray.Direction);
 		const float c = glm::dot(origin, origin) - Radius * Radius;
 
-		// Quadratic formula discriminant: b^2 - 4ac
 		const float discriminant = b * b - 4.0f * a * c;
 		if (discriminant < 0.0f)
 			continue;
 
-		// [ -b +- sqrt(discriminant) ] / 2a
-
-		// float t0 = (-b + glm::sqrt(discriminant)) / (2.0f * a);
-
 		if (
-			const float closestT = (-b - glm::sqrt(discriminant)) / (2.0f * a); 
+			const float closestT = (-b - glm::sqrt(discriminant)) / (2.0f * a);
 			closestT > 0.0f && closestT < hitDistance
 			)
 		{
@@ -263,8 +310,8 @@ Renderer::HitPayLoad Renderer::TraceRay(const Ray& ray) const
 }
 
 Renderer::HitPayLoad Renderer::ClosestHit(
-	const Ray& ray, 
-	const float hitDistance, 
+	const Ray& ray,
+	const float hitDistance,
 	const int objectIndex
 ) const
 {
@@ -273,7 +320,7 @@ Renderer::HitPayLoad Renderer::ClosestHit(
 	payload.ObjectIndex = objectIndex;
 
 	const auto& [Position, Radius, MaterialIndex]
-	= m_ActiveScene->Spheres[objectIndex];
+		= m_ActiveScene->Spheres[objectIndex];
 
 	const glm::vec3 origin = ray.Origin - Position;
 	payload.WorldPosition = origin + ray.Direction * hitDistance;
@@ -290,3 +337,89 @@ Renderer::HitPayLoad Renderer::Miss(const Ray& ray)
 	payload.HitDistance = -1.0f;
 	return payload;
 }
+
+#endif // !WL_CUDA
+
+// ──────────────────────────────────────────────
+// CUDA GPU Rendering Path
+// ──────────────────────────────────────────────
+
+#ifdef WL_CUDA
+
+void Renderer::UploadSceneToGPU(const Scene& scene)
+{
+	// Pack CPU scene data into GPU-compatible flat arrays
+	PackSpheres(
+		*reinterpret_cast<const std::vector<CPUSphere>*>(&scene.Spheres),
+		m_GPUSpheres
+	);
+	PackMaterials(
+		*reinterpret_cast<const std::vector<CPUMaterial>*>(&scene.Materials),
+		m_GPUMaterials
+	);
+
+	CUDARenderer_UploadScene(
+		m_CUDAState,
+		m_GPUSpheres.data(),
+		static_cast<uint32_t>(m_GPUSpheres.size()),
+		m_GPUMaterials.data(),
+		static_cast<uint32_t>(m_GPUMaterials.size())
+	);
+}
+
+void Renderer::RenderGPU(const Scene& scene, const Camera& camera)
+{
+	if (!m_CUDAState || !m_FinalImage)
+		return;
+
+	const uint32_t width = m_FinalImage->GetWidth();
+	const uint32_t height = m_FinalImage->GetHeight();
+	if (width == 0 || height == 0) return;
+
+	// Upload scene data (only when dirty to avoid redundant transfers)
+	if (m_SceneDirty)
+	{
+		UploadSceneToGPU(scene);
+		m_SceneDirty = false;
+	}
+
+	// Upload camera position
+	const glm::vec3& camPos = camera.GetPosition();
+	CUDARenderer_SetCameraPosition(
+		m_CUDAState, camPos.x, camPos.y, camPos.z
+	);
+
+	// Upload ray directions
+	const auto& rayDirs = camera.GetRayDirections();
+	m_GPURayDirs.resize(rayDirs.size());
+	for (size_t i = 0; i < rayDirs.size(); i++)
+	{
+		m_GPURayDirs[i].x = rayDirs[i].x;
+		m_GPURayDirs[i].y = rayDirs[i].y;
+		m_GPURayDirs[i].z = rayDirs[i].z;
+	}
+	CUDARenderer_UploadRayDirections(
+		m_CUDAState,
+		m_GPURayDirs.data(),
+		static_cast<uint32_t>(m_GPURayDirs.size())
+	);
+
+	// Update settings
+	CUDARenderer_SetSettings(
+		m_CUDAState,
+		5, // MaxBounces
+		static_cast<int>(m_Settings.Accumulate)
+	);
+
+	// Launch CUDA render kernel
+	CUDARenderer_Render(m_CUDAState, m_FrameIndex);
+
+	// Download output image from GPU
+	CUDARenderer_GetOutput(
+		m_CUDAState,
+		m_ImageData,
+		width * height * sizeof(uint32_t)
+	);
+}
+
+#endif // WL_CUDA

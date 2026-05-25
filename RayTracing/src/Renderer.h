@@ -6,6 +6,10 @@
 #include "Ray.h"
 #include "Scene.h"
 
+#ifdef WL_CUDA
+#include "CUDARenderer.h"
+#endif
+
 #include <memory>
 
 #include <glm/glm.hpp>
@@ -19,7 +23,7 @@ public:
 		bool SlowRandom = true;
 	};
 
-	Renderer() = default;
+	Renderer();
 	~Renderer();
 
 	Renderer(const Renderer&) = delete;
@@ -45,15 +49,23 @@ private:
 
 		int ObjectIndex;
 	};
-	[[nodiscard]] glm::vec4 PerPixel(uint32_t x, uint32_t y) const;	// RayGen Shader
 
+#ifdef WL_CUDA
+	// GPU rendering path
+	void RenderGPU(const Scene& scene, const Camera& camera);
+	void UploadSceneToGPU(const Scene& scene);
+	bool m_SceneDirty = true; // Track when scene changes
+#else
+	// CPU rendering path
+	[[nodiscard]] glm::vec4 PerPixel(uint32_t x, uint32_t y) const;	// RayGen Shader
 	[[nodiscard]] HitPayLoad TraceRay(const Ray& ray) const;
 	[[nodiscard]] HitPayLoad ClosestHit(
-		const Ray& ray, 
-		float hitDistance, 
+		const Ray& ray,
+		float hitDistance,
 		int objectIndex
 	) const;
 	static HitPayLoad Miss(const Ray& ray);
+#endif
 
 private:
 	std::shared_ptr<Walnut::Image> m_FinalImage;
@@ -69,4 +81,11 @@ private:
 	glm::vec4* m_AccumulationData = nullptr;
 
 	uint32_t m_FrameIndex = 1;
+
+#ifdef WL_CUDA
+	CUDARenderState* m_CUDAState = nullptr;
+	std::vector<GPUPackedSphere>   m_GPUSpheres;
+	std::vector<GPUPackedMaterial> m_GPUMaterials;
+	std::vector<float3>            m_GPURayDirs;
+#endif
 };
