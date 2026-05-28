@@ -179,7 +179,10 @@ public:
 		}
 
 		if (changed)
+		{
+			m_Renderer.ResetFrameIndex(); // Avoid old samples polluting the accumulation buffer
 			m_NeedsRender = true;
+		}
 
 		ImGui::End();
 
