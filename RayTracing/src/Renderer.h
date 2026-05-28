@@ -54,7 +54,7 @@ private:
 	// GPU rendering path
 	void RenderGPU(const Scene& scene, const Camera& camera);
 	void UploadSceneToGPU(const Scene& scene);
-	bool m_SceneDirty = true; // Track when scene changes
+	// Scene data is uploaded every frame (ImGui modifies Scene directly)
 #else
 	// CPU rendering path
 	[[nodiscard]] glm::vec4 PerPixel(uint32_t x, uint32_t y) const;	// RayGen Shader

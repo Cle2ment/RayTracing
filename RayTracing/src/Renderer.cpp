@@ -252,8 +252,12 @@ glm::vec4 Renderer::PerPixel(uint32_t x, uint32_t y) const
 		const Material& material = m_ActiveScene->Materials[MaterialIndex];
 
 
+		// Emission is attenuated by throughput-so-far (all previous surface BRDFs),
+		// but NOT by this surface's albedo (emission is a separate material property).
+		// This order matches the GPU path (CUDARenderer.cuh:193-200) and the
+		// path tracing integral: Le * ∏(previous BSDFs)
+		light += contribution * material.GetEmission();
 		contribution *= material.Albedo;
-		light += material.GetEmission();
 
 		// Russian roulette: probabilistically terminate low-contribution paths (after 3 guaranteed bounces)
 		if (i > 2)
@@ -396,12 +400,9 @@ void Renderer::RenderGPU(const Scene& scene, const Camera& camera)
 	const uint32_t height = m_FinalImage->GetHeight();
 	if (width == 0 || height == 0) return;
 
-	// Upload scene data (only when dirty to avoid redundant transfers)
-	if (m_SceneDirty)
-	{
-		UploadSceneToGPU(scene);
-		m_SceneDirty = false;
-	}
+	// Upload scene data every frame — ImGui modifies Scene directly through references,
+	// so the Renderer cannot reliably detect changes via a dirty flag
+	UploadSceneToGPU(scene);
 
 	// Upload camera position
 	const glm::vec3& camPos = camera.GetPosition();
