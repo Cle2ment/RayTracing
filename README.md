@@ -1,5 +1,7 @@
 ﻿# Ray Tracing — NVIDIA GPU Accelerated Path Tracer
 
+[English](README.md) | [中文](docs/README_zh-CN.md) 
+
 ![Static Badge](https://img.shields.io/badge/Inspired_by-TheCherno-yellow?logo=Github)
 ![Static Badge](https://img.shields.io/badge/Language-C++20-blue?logo=cplusplus)
 ![Static Badge](https://img.shields.io/badge/GPU-CUDA-green?logo=nvidia)
