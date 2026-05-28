@@ -32,3 +32,6 @@ copilot*.md
 *.cubin
 *.fatbin
 nvcc_temp/
+
+*.bin
+*.exe
