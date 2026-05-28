@@ -82,7 +82,7 @@ project "RayTracing"
       -- Linker automatically picks up all .obj files from $(IntDir)
       local nvccCmd = '"' .. cudaPath .. '/bin/nvcc"'
          .. ' -ccbin="$(VCToolsInstallDir)bin\\Hostx64\\x64"'
-         .. ' -lineinfo --use_fast_math'
+          .. ' -lineinfo --use_fast_math -allow-unsupported-compiler'
          .. ' -I"' .. cudaPath .. '/include"'
          .. ' -I"' .. path.getabsolute("../Walnut/vendor/imgui") .. '"'
          .. ' -I"' .. path.getabsolute("../Walnut/vendor/glfw/include") .. '"'
