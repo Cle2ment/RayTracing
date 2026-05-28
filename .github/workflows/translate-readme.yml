@@ -69,7 +69,8 @@ jobs:
         if: steps.detect.outputs.changed == 'true'
         shell: bash
         run: |
-          if ! git diff --quiet docs/README_zh-CN.md; then
+          # git diff only works on tracked files; use status for new files too
+          if git status --porcelain docs/README_zh-CN.md | grep -q .; then
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
             git add docs/README_zh-CN.md
