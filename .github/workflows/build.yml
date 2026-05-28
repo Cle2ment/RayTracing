@@ -14,7 +14,7 @@ concurrency:
 jobs:
   build:
     name: Build (${{ matrix.configuration }})
-    runs-on: windows-2022
+    runs-on: windows-2025-vs2026
 
     strategy:
       fail-fast: false
@@ -34,7 +34,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8
-          key: cuda-12.8.0-windows-2022-v1
+          key: cuda-12.8.0-windows-2025-vs2026-v1
 
       # ── CUDA: install only on cache miss ──
       - name: Install CUDA Toolkit
@@ -65,7 +65,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: C:\VulkanSDK\1.4.309.0
-          key: vulkan-1.4.309.0-windows-2022-v1
+          key: vulkan-1.4.309.0-windows-2025-vs2026-v1
 
       - name: Install Vulkan SDK
         if: steps.cache-vulkan.outputs.cache-hit != 'true'
@@ -106,7 +106,7 @@ jobs:
       - name: Generate Project Files
         shell: pwsh
         run: |
-          .\premake5.exe vs2022
+          .\premake5.exe vs2026
 
       # ── Build ──
       - name: Setup MSVC
@@ -118,13 +118,13 @@ jobs:
         if: matrix.configuration == 'Debug'
         shell: pwsh
         run: |
-          msbuild RayTracing.sln /p:Configuration=Debug /p:Platform=x64 /m /v:minimal
+          msbuild RayTracing.slnx /p:Configuration=Debug /p:Platform=x64 /m /v:minimal
 
       - name: Build (Release)
         if: matrix.configuration == 'Release'
         shell: pwsh
         run: |
-          msbuild RayTracing.sln /p:Configuration=Release /p:Platform=x64 /m /v:minimal
+          msbuild RayTracing.slnx /p:Configuration=Release /p:Platform=x64 /m /v:minimal
 
       - name: Verify Build Output
         shell: pwsh
