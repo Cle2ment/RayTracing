@@ -1,6 +1,5 @@
 ﻿# Ray Tracing — NVIDIA GPU Accelerated Path Tracer
 
-![Free Palestine](https://freepalestinemovement.org/wp-content/uploads/2013/06/banner.jpg)
 ![Static Badge](https://img.shields.io/badge/Inspired_by-TheCherno-yellow?logo=Github)
 ![Static Badge](https://img.shields.io/badge/Language-C++20-blue?logo=cplusplus)
 ![Static Badge](https://img.shields.io/badge/GPU-CUDA-green?logo=nvidia)
