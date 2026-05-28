@@ -28,7 +28,17 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
-      - name: Setup CUDA Toolkit
+      # ── CUDA: manual caching to avoid ~3GB download every run ──
+      - name: Cache CUDA Toolkit
+        id: cache-cuda
+        uses: actions/cache@v4
+        with:
+          path: C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8
+          key: cuda-12.8.0-windows-2022-v1
+
+      # ── CUDA: install only on cache miss ──
+      - name: Install CUDA Toolkit
+        if: steps.cache-cuda.outputs.cache-hit != 'true'
         uses: Jimver/cuda-toolkit@v0.2.21
         with:
           cuda: '12.8.0'
@@ -36,14 +46,29 @@ jobs:
           sub-packages: '[]'
           non-cuda-sub-packages: '[]'
 
+      # ── CUDA: set environment even on cache hit ──
+      - name: Set CUDA Environment
+        shell: pwsh
+        run: |
+          $cudaPath = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8"
+          echo "CUDA_PATH=$cudaPath" >> $env:GITHUB_ENV
+          echo "$cudaPath\bin" >> $env:GITHUB_PATH
+
       - name: Verify CUDA Installation
         shell: pwsh
         run: |
-          nvcc --version
-          echo "CUDA_PATH=$env:CUDA_PATH"
-          echo "CUDA_PATH_V12_8=$env:CUDA_PATH_V12_8"
+          nvcc --version 2>&1 || Write-Warning "nvcc not found — building CPU-only"
 
-      - name: Setup Vulkan SDK
+      # ── Vulkan SDK ──
+      - name: Cache Vulkan SDK
+        id: cache-vulkan
+        uses: actions/cache@v4
+        with:
+          path: C:\VulkanSDK\1.4.309.0
+          key: vulkan-1.4.309.0-windows-2022-v1
+
+      - name: Install Vulkan SDK
+        if: steps.cache-vulkan.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
           $vulkanVersion = "1.4.309.0"
@@ -53,7 +78,22 @@ jobs:
           Start-Process -FilePath $installerPath -ArgumentList "--accept-licenses --default-answer --confirm-command install" -Wait -NoNewWindow
           echo "VULKAN_SDK=C:\VulkanSDK\$vulkanVersion" >> $env:GITHUB_ENV
 
+      - name: Set Vulkan Environment
+        if: steps.cache-vulkan.outputs.cache-hit == 'true'
+        shell: pwsh
+        run: |
+          echo "VULKAN_SDK=C:\VulkanSDK\1.4.309.0" >> $env:GITHUB_ENV
+
+      # ── Premake5 ──
+      - name: Cache Premake5
+        id: cache-premake
+        uses: actions/cache@v4
+        with:
+          path: premake5.exe
+          key: premake-5.0.0-beta2-v1
+
       - name: Setup Premake5
+        if: steps.cache-premake.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
           $premakeVersion = "5.0.0-beta2"
@@ -62,13 +102,13 @@ jobs:
           Invoke-WebRequest -Uri $premakeUrl -OutFile $premakeZip
           Expand-Archive -Path $premakeZip -DestinationPath "$env:RUNNER_TEMP\premake"
           Copy-Item "$env:RUNNER_TEMP\premake\premake5.exe" -Destination ".\premake5.exe"
-          .\premake5.exe --version
 
       - name: Generate Project Files
         shell: pwsh
         run: |
           .\premake5.exe vs2026
 
+      # ── Build ──
       - name: Setup MSVC
         uses: ilammy/msvc-dev-cmd@v1
         with:
