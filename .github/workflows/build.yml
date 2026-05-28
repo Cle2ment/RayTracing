@@ -90,13 +90,13 @@ jobs:
         uses: actions/cache@v4
         with:
           path: premake5.exe
-          key: premake-5.0.0-beta2-v1
+          key: premake-5.0.0-beta8-v1
 
       - name: Setup Premake5
         if: steps.cache-premake.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
-          $premakeVersion = "5.0.0-beta2"
+          $premakeVersion = "5.0.0-beta8"
           $premakeUrl = "https://github.com/premake/premake-core/releases/download/v$premakeVersion/premake-$premakeVersion-windows.zip"
           $premakeZip = "$env:RUNNER_TEMP\premake.zip"
           Invoke-WebRequest -Uri $premakeUrl -OutFile $premakeZip
