@@ -26,6 +26,9 @@ struct CUDARenderState
     uint32_t imageHeight;
     uint32_t pixelCount;
 
+    uint32_t allocatedSphereCount;   // Track current GPU allocation size
+    uint32_t allocatedMaterialCount;
+
     bool initialized;
 };
 
@@ -43,6 +46,9 @@ CUDARenderState* CUDARenderer_Create()
     state->imageWidth = 0;
     state->imageHeight = 0;
     state->pixelCount = 0;
+
+    state->allocatedSphereCount = 0;
+    state->allocatedMaterialCount = 0;
 
     return state;
 }
@@ -128,22 +134,49 @@ void CUDARenderer_UploadScene(
 {
     if (!state || !state->initialized) return;
 
-    // Free old scene data
-    if (state->d_Spheres)   cudaFree(state->d_Spheres);
-    if (state->d_Materials) cudaFree(state->d_Materials);
-
-    // Allocate and copy spheres
-    if (sphereCount > 0)
+    // Reallocate sphere buffer only when count changes
+    if (sphereCount != state->allocatedSphereCount)
     {
-        cudaMalloc(&state->d_Spheres, sphereCount * sizeof(GPUSphere));
+        if (state->d_Spheres) cudaFree(state->d_Spheres);
+        state->d_Spheres = nullptr;
+
+        if (sphereCount > 0)
+        {
+            cudaMalloc(&state->d_Spheres, sphereCount * sizeof(GPUSphere));
+            state->allocatedSphereCount = sphereCount;
+        }
+        else
+        {
+            state->allocatedSphereCount = 0;
+        }
+    }
+
+    // Reallocate material buffer only when count changes
+    if (materialCount != state->allocatedMaterialCount)
+    {
+        if (state->d_Materials) cudaFree(state->d_Materials);
+        state->d_Materials = nullptr;
+
+        if (materialCount > 0)
+        {
+            cudaMalloc(&state->d_Materials, materialCount * sizeof(GPUMaterial));
+            state->allocatedMaterialCount = materialCount;
+        }
+        else
+        {
+            state->allocatedMaterialCount = 0;
+        }
+    }
+
+    // Copy updated data to GPU (every frame — data may have changed)
+    if (sphereCount > 0 && state->d_Spheres)
+    {
         cudaMemcpy(state->d_Spheres, spheres,
                    sphereCount * sizeof(GPUSphere), cudaMemcpyHostToDevice);
     }
 
-    // Allocate and copy materials
-    if (materialCount > 0)
+    if (materialCount > 0 && state->d_Materials)
     {
-        cudaMalloc(&state->d_Materials, materialCount * sizeof(GPUMaterial));
         cudaMemcpy(state->d_Materials, materials,
                    materialCount * sizeof(GPUMaterial), cudaMemcpyHostToDevice);
     }
