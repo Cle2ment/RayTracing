@@ -28,11 +28,15 @@ jobs:
         id: detect
         shell: bash
         run: |
-          # Determine the base commit for diff comparison:
-          # - On push: use github.event.before (the commit before the push)
-          # - On workflow_dispatch or first push: fall back to HEAD~1
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            # Manual trigger: always translate, no detection needed
+            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "workflow_dispatch — will translate"
+            exit 0
+          fi
+          # Push event: check if README.md was actually changed
           BASE="${{ github.event.before }}"
-          if [[ "${{ github.event_name }}" != "push" || -z "$BASE" || "$BASE" == "0000000000000000000000000000000000000000" ]]; then
+          if [[ -z "$BASE" || "$BASE" == "0000000000000000000000000000000000000000" ]]; then
             BASE="HEAD~1"
           fi
           if git diff --name-only "$BASE" HEAD | grep -q "^README.md$"; then
