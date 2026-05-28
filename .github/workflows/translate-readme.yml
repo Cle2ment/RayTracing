@@ -13,18 +13,10 @@ concurrency:
 
 jobs:
   translate:
-    name: Translate (${{ matrix.lang }})
+    name: Translate & Commit
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - lang: zh-CN
-            lang_name: Simplified Chinese
-            output: docs/README_zh-CN.md
-          - lang: fr-FR
-            lang_name: French
-            output: docs/README_fr-FR.md
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout Repository
@@ -64,49 +56,33 @@ jobs:
         shell: bash
         run: pip install openai
 
-      - name: Run Translation
+      - name: Translate to Chinese
         if: steps.detect.outputs.changed == 'true'
         shell: bash
         env:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
         run: |
           python .github/scripts/translate_readme.py \
-            --lang "${{ matrix.lang }}" \
-            --lang-name "${{ matrix.lang_name }}" \
-            --output "${{ matrix.output }}"
+            --lang zh-CN --lang-name "Simplified Chinese" \
+            --output docs/README_zh-CN.md
 
-      - name: Upload Translation Artifact
+      - name: Translate to French
         if: steps.detect.outputs.changed == 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: translation-${{ matrix.lang }}
-          path: ${{ matrix.output }}
+        shell: bash
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        run: |
+          python .github/scripts/translate_readme.py \
+            --lang fr-FR --lang-name "French" \
+            --output docs/README_fr-FR.md
 
-  commit:
-    name: Commit Translations
-    needs: translate
-    if: always() && !cancelled()
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Download Translations
-        uses: actions/download-artifact@v4
-        with:
-          pattern: translation-*
-          merge-multiple: true
-          path: .
-
-      - name: Commit and Push
+      - name: Commit Translations
+        if: steps.detect.outputs.changed == 'true'
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add docs/README_*.md
+          git add docs/README_zh-CN.md docs/README_fr-FR.md
           if git diff --cached --quiet; then
             echo "No changes to commit"
             exit 0
