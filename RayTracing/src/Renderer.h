@@ -88,4 +88,17 @@ private:
 	std::vector<GPUPackedMaterial> m_GPUMaterials;
 	std::vector<float3>            m_GPURayDirs;
 #endif
+
+#ifdef WL_ISPC
+	// ISPC SoA packing buffers (reused across frames to avoid reallocation)
+	std::vector<float> m_ISPCRayDirX, m_ISPCRayDirY, m_ISPCRayDirZ;
+	std::vector<float> m_ISCPSphPosX, m_ISCPSphPosY, m_ISCPSphPosZ;
+	std::vector<float> m_ISCPSphRadius;
+	std::vector<int32_t> m_ISCPSphMatIdx;
+	std::vector<float> m_ISPCMatAlbedoR, m_ISPCMatAlbedoG, m_ISPCMatAlbedoB;
+	std::vector<float> m_ISPCMatRoughness, m_ISPCMatMetallic;
+	std::vector<float> m_ISPCMatEmissionR, m_ISPCMatEmissionG, m_ISPCMatEmissionB;
+	std::vector<float> m_ISPCMatEmissionPower;
+	std::vector<float> m_ISPCOutputR, m_ISPCOutputG, m_ISPCOutputB, m_ISPCOutputA;
+#endif
 };

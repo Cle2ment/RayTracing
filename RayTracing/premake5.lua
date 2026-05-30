@@ -15,6 +15,16 @@ if not cudaFound then
    print("      Example: setx CUDA_PATH \"C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v13.3\"")
 end
 
+-- ISPC Detection (Intel SPMD Program Compiler — CPU SIMD acceleration)
+local ispcPath = "../vendor/ispc/bin/ispc.exe"
+local ispcFound = os.isfile(ispcPath)
+if ispcFound then
+   print("ISPC detected: " .. ispcPath .. " — CPU path tracer will use SIMD acceleration")
+else
+   print("NOTE: ISPC not found at " .. ispcPath .. ". Using C++ scalar CPU path tracer.")
+   print("      Download ISPC from https://github.com/ispc/ispc/releases")
+end
+
 -- CUDA Architecture Targets (virtual + real)
 -- sm_75: Turing (RTX 20xx, GTX 16xx)
 -- sm_86: Ampere (RTX 30xx)
@@ -129,6 +139,31 @@ project "RayTracing"
             .. ' -o "$(IntDir)CUDARenderer.obj"'
             .. ' "src\\CUDARenderer.cu"'
          }
+   end
+
+   -- ISPC Configuration (CPU SIMD acceleration)
+   if ispcFound then
+      defines { "WL_ISPC" }
+
+      -- Include path for generated ISPC header (goes to $(IntDir))
+      includedirs { "$(IntDir)" }
+
+      -- Explicitly add ISPC output .obj to linker inputs
+      linkoptions { '"$(IntDir)PathTracer.ispc.obj"' }
+
+      local ispcAbs = path.getabsolute(ispcPath)
+      local ispcCmd = '"' .. ispcAbs .. '"'
+         .. ' --target=avx2,avx512skx-i32x16 --arch=x86-64'
+         .. ' --opt=disable-assertions'
+         .. ' "src\\PathTracer.ispc"'
+         .. ' -o "$(IntDir)PathTracer.ispc.obj"'
+         .. ' -h "$(IntDir)PathTracer_ispc.h"'
+
+      filter "configurations:Debug"
+         prebuildcommands { ispcCmd .. ' -g' }
+
+      filter "configurations:Release or Dist"
+         prebuildcommands { ispcCmd .. ' -O2' }
    end
 
    filter "system:windows"
