@@ -54,7 +54,7 @@ cd RayTracing
 cd scripts
 Setup.bat
 ```
-This runs Premake5 to generate Visual Studio 2026 solution files. The build system automatically detects CUDA and enables GPU acceleration.
+This runs **Premake5 5.0.0-beta8** to generate Visual Studio 2026 solution files. The script automatically downloads premake5 if not present (the version bundled with Walnut does not support `cppdialect "C++23"`). The build system automatically detects CUDA and enables GPU acceleration.
 
 ### 4. Build & Run
 Open `RayTracing.slnx` in Visual Studio 2026 and build (Release or Dist mode recommended for performance).
@@ -149,6 +149,7 @@ Once you've cloned, you can customize the `premake5.lua` and `WalnutApp/premake5
 | `CUDA_PATH` 未设置 | 环境变量缺失 | 系统属性 → 环境变量 → 新建 `CUDA_PATH`，指向 CUDA Toolkit 目录 |
 | 构建时 `.cu` 文件未编译 | `CUDA_PATH` 未在生成时生效 | 重启终端，确认 `echo %CUDA_PATH%` 非空后重新 `Setup.bat` |
 | 链接器报 `CUDARenderer_*` 未定义 | `CUDARenderer.obj` 未被链接 | 检查 `premake5.lua` 中 `linkoptions { "$(IntDir)CUDARenderer.obj" }` |
+| `invalid value 'C++23' for cppdialect` | 使用了 Walnut 自带的旧版 premake5 | 运行 `scripts\Setup.bat`（它会自动下载新版）或手动下载 premake5 5.0.0-beta8 |
 
 ## LICENSE
 The project uses `MIT License`.
