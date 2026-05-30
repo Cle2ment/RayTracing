@@ -35,7 +35,7 @@ A real-time interactive path tracer built with C++23 and the Walnut application 
   - sm_120: RTX 50xx
 - **CUDA Toolkit 12.0+**（可选，推荐 13.x，用于 GPU 加速）
 - **Vulkan SDK 1.4+**
-- **Visual Studio 2026**（或 2022，向下兼容）with C++20 support
+- **Visual Studio 2026**（或 2022，向下兼容）with C++23 support
 
 ## How To Build
 

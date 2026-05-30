@@ -10,7 +10,7 @@
 
 ## 简介
 
-一个基于 C++20 和 Walnut 应用框架构建的实时交互式路径追踪器。**通过 NVIDIA CUDA 实现 GPU 加速** — 整个路径追踪管线（光线生成、求交、着色、累积）均在 GPU 上运行。当 CUDA 不可用时，回退到 CPU 多线程渲染。
+一个基于 C++23 和 Walnut 应用框架构建的实时交互式路径追踪器。**通过 NVIDIA CUDA 实现 GPU 加速** — 整个路径追踪管线（光线生成、求交、着色、累积）均在 GPU 上运行。当 CUDA 不可用时，回退到 CPU 多线程渲染。
 
 ### 架构
 
@@ -35,7 +35,7 @@
   - sm_120: RTX 50xx
 - **CUDA Toolkit 12.0+**（可选，推荐 13.x，用于 GPU 加速）
 - **Vulkan SDK 1.4+**
-- **Visual Studio 2026**（或 2022，向下兼容）with C++20 support
+- **Visual Studio 2026**（或 2022，向下兼容）with C++23 support
 
 ## 构建方法
 
