@@ -66,7 +66,7 @@ def main():
 
     try:
         response = client.chat.completions.create(
-            model="deepseek-chat",  # More capable than v4-flash for non-English translation
+            model="deepseek-v4-flash",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
