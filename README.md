@@ -92,8 +92,8 @@ RayTracing/
 
 ## Demonstration
 
-![Random Sampling](screenshots/example-random.png)
-![Accumulated](screenshots/example-accumulate.png)
+![Random Sampling](/screenshots/example-random.png)
+![Accumulated](/screenshots/example-accumulate.png)
 
 ## Troubleshooting
 
