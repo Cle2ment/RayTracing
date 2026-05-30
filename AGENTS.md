@@ -38,7 +38,9 @@ RayTracing/
 | Scene→GPU upload | `Renderer.cpp:351-388` | Packing from glm→GPU structs, then `cudaMemcpy` |
 | Material definition | `Scene.h:7-19` | Albedo, Roughness, Metallic, EmissionColor, EmissionPower |
 | Camera ray generation | `Camera.cpp:137-166` | Pre-computed ray directions per pixel |
+| ISPC SIMD path tracing | `PathTracer.ispc:1-220` | ISPC-accelerated CPU path tracer (PerPixel + TraceRay) |
 | CUDA architecture targets | `RayTracing/premake5.lua:22-27` | sm_75, sm_86, sm_89, sm_120 |
+| ISPC SIMD targets | `RayTracing/premake5.lua` | avx2, avx512skx-i32x16 |
 | Build config | `RayTracing/premake5.lua:29-146` | WL_CUDA define, NVCC prebuild commands |
 
 ## CODE MAP
@@ -57,13 +59,16 @@ RayTracing/
 | `GPUMaterial` | struct | `CUDATypes.cuh:23` | Device-side material |
 | `Camera::OnUpdate()` | method | `Camera.cpp:21` | FPS camera controls |
 | `Camera::RecalculateRayDirections()` | method | `Camera.cpp:137` | Pre-compute ray grid |
+| `::ISPCRenderPixels()` | export | `PathTracer.ispc:93` | ISPC SIMD path tracer entry point |
+| ISPC build config | — | `RayTracing/premake5.lua:142-160` | WL_ISPC define, AVX2+AVX-512 targets |
 
 ## CONVENTIONS
 
 ### Conditional Compilation
 - `#ifdef WL_CUDA` — gates ALL CUDA code. Defined in premake when `CUDA_PATH` is set.
+- `#ifdef WL_ISPC` — gates ISPC SIMD code. Defined in premake when `vendor/ispc/bin/ispc.exe` exists.
 - `#ifdef WL_DEBUG` / `WL_RELEASE` / `WL_DIST` — per-configuration defines.
-- `#ifndef WL_CUDA` — CPU-only path (`Renderer.cpp`).
+- `#ifndef WL_CUDA` — CPU-only path (`Renderer.cpp`). ISPC path is nested inside this block when `WL_ISPC` is also defined.
 
 ### Memory Layout Contracts (CRITICAL)
 - `GPUPackedMaterial` (host, `CUDARenderer.h:86`) ↔ `GPUMaterial` (device, `CUDATypes.cuh:23`) — 36 bytes, identical layout
@@ -123,4 +128,6 @@ msbuild RayTracing.slnx /p:Configuration=Debug /p:Platform=x64 /m
 - **Single light source** — only emissive materials illuminate the scene; no env/sky light
 - **GPU accumulation** — old samples persist in buffer; use Reset button or disable Accumulate for clean re-render after ImGui changes
 - **CUDA arch fallback** — if nvcc fails, check GPU compute capability matches `sm_XX` in `premake5.lua:22-27`
+- **ISPC arch fallback** — if ISPC not found, CPU path falls back to C++ `std::execution::par` (no SIMD)
 - **Walnut submodule** — upstream: `https://github.com/TheCherno/Walnut`; vendor deps pinned to tested commits
+- **ISPC download** — `scripts\Setup.bat` auto-downloads to `vendor\ispc\`; manual: https://github.com/ispc/ispc/releases/tag/v1.30.0

@@ -98,8 +98,8 @@ jobs:
         id: cache-premake
         uses: actions/cache@v4
         with:
-          path: premake5.exe
-          key: premake-5.0.0-beta8-v1
+          path: vendor/premake
+          key: premake-5.0.0-beta8-v2
 
       - name: Setup Premake5
         if: steps.cache-premake.outputs.cache-hit != 'true'
@@ -110,12 +110,13 @@ jobs:
           $premakeZip = "$env:RUNNER_TEMP\premake.zip"
           Invoke-WebRequest -Uri $premakeUrl -OutFile $premakeZip
           Expand-Archive -Path $premakeZip -DestinationPath "$env:RUNNER_TEMP\premake"
-          Copy-Item "$env:RUNNER_TEMP\premake\premake5.exe" -Destination ".\premake5.exe"
+          New-Item -ItemType Directory -Force -Path vendor\premake
+          Copy-Item "$env:RUNNER_TEMP\premake\premake5.exe" -Destination "vendor\premake\premake5.exe"
 
       - name: Generate Project Files
         shell: pwsh
         run: |
-          .\premake5.exe vs2026
+          vendor\premake\premake5.exe vs2026
 
       # ── Build ──
       - name: Setup MSVC

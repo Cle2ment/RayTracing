@@ -62,6 +62,11 @@ Open `RayTracing.slnx` in Visual Studio 2026 and build (Release or Dist mode rec
 ### Build Without CUDA
 If CUDA Toolkit is not installed, the project builds as a CPU-only path tracer using `std::execution::par`. The build system defines `WL_CUDA` only when CUDA is detected.
 
+### ISPC Acceleration (Optional)
+[ISPC](https://github.com/ispc/ispc) (Intel SPMD Program Compiler) provides SIMD acceleration for the CPU path tracer. The `Setup.bat` script automatically downloads ISPC v1.30.0 to `vendor/ispc/`. When detected, the build system defines `WL_ISPC` and enables AVX2+AVX-512 vectorized path tracing.
+
+To install manually: download `ispc-v1.30.0-windows.zip` from the [ISPC releases page](https://github.com/ispc/ispc/releases/tag/v1.30.0) and extract its contents to `vendor/ispc/`.
+
 ## Rendering Pipeline
 
 ```

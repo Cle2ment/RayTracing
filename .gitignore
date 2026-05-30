@@ -2,15 +2,19 @@
 .vs/
 bin/
 bin-int/
+vendor/*
+!vendor/premake/
+!vendor/ispc/
+vendor/premake/*
+!vendor/premake/.gitkeep
+vendor/ispc/*
+!vendor/ispc/.gitkeep
 
 
 # Files
 *.vcxproj
 *.vcxproj.user
 *.vcxproj.filters
-
-# Exclude
-!vendor/bin
 
 # UI configs
 *.ini
@@ -20,6 +24,7 @@ copilot*.md
 
 .omo/
 superpowers/
+docs/language-refactoring-analysis.md
 
 # CUDA Build Artifacts
 *.obj
