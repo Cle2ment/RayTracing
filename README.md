@@ -1,7 +1,5 @@
 ﻿# Ray Tracing — NVIDIA GPU Accelerated Path Tracer
 
-[English](/README.md) | [中文](/docs/README_zh-CN.md) | [Français](/docs/README_fr-FR.md)
-
 ![Static Badge](https://img.shields.io/badge/Inspired_by-TheCherno-yellow?logo=Github)
 ![Static Badge](https://img.shields.io/badge/Language-C++23-blue?logo=cplusplus)
 ![Static Badge](https://img.shields.io/badge/GPU-CUDA-green?logo=nvidia)
@@ -28,14 +26,14 @@ A real-time interactive path tracer built with C++23 and the Walnut application 
 
 ## Requirements
 
-- **NVIDIA GPU**（可选）with Compute Capability ≥ 7.5（Turing / Ampere / Ada / Blackwell）
+- **NVIDIA GPU** (optional) with Compute Capability ≥ 7.5 (Turing / Ampere / Ada / Blackwell)
   - sm_75: GTX 16xx, RTX 20xx
   - sm_86: RTX 30xx
   - sm_89: RTX 40xx
   - sm_120: RTX 50xx
-- **CUDA Toolkit 12.0+**（可选，推荐 13.x，用于 GPU 加速）
+- **CUDA Toolkit 12.0+** (optional, 13.x recommended for GPU acceleration)
 - **Vulkan SDK 1.4+**
-- **Visual Studio 2026**（或 2022，向下兼容）with C++23 support
+- **Visual Studio 2026** (or 2022, backward compatible) with C++23 support
 
 ## How To Build
 
@@ -147,14 +145,14 @@ Once you've cloned, you can customize the `premake5.lua` and `WalnutApp/premake5
 
 ## Troubleshooting
 
-| 现象 | 原因 | 解决 |
-|------|------|------|
-| Viewport 全黑 | CUDA 架构不匹配 | 确认 GPU 型号，检查 `premake5.lua` 中 `cudaArchs` 是否包含对应 `sm_XX` |
-| `no kernel image is available` | nvcc 未为目标 GPU 编译内核 | 添加对应 `-gencode=arch=compute_XX,code=sm_XX` |
-| `CUDA_PATH` 未设置 | 环境变量缺失 | 系统属性 → 环境变量 → 新建 `CUDA_PATH`，指向 CUDA Toolkit 目录 |
-| 构建时 `.cu` 文件未编译 | `CUDA_PATH` 未在生成时生效 | 重启终端，确认 `echo %CUDA_PATH%` 非空后重新 `Setup.bat` |
-| 链接器报 `CUDARenderer_*` 未定义 | `CUDARenderer.obj` 未被链接 | 检查 `premake5.lua` 中 `linkoptions { "$(IntDir)CUDARenderer.obj" }` |
-| `invalid value 'C++23' for cppdialect` | 使用了 Walnut 自带的旧版 premake5 | 运行 `scripts\Setup.bat`（它会自动下载新版）或手动下载 premake5 5.0.0-beta8 |
+| Symptom | Cause | Solution |
+|---------|-------|---------|
+| Viewport is black | CUDA architecture mismatch | Verify GPU model, check that `cudaArchs` in `premake5.lua` includes the correct `sm_XX` |
+| `no kernel image is available` | nvcc did not compile for target GPU | Add corresponding `-gencode=arch=compute_XX,code=sm_XX` |
+| `CUDA_PATH` not set | Environment variable missing | System Properties → Environment Variables → New `CUDA_PATH`, point to CUDA Toolkit directory |
+| `.cu` files not compiled during build | `CUDA_PATH` not effective at generation time | Restart terminal, verify `echo %CUDA_PATH%` is non-empty, then re-run `Setup.bat` |
+| Linker reports `CUDARenderer_*` undefined | `CUDARenderer.obj` not linked | Check `linkoptions { "$(IntDir)CUDARenderer.obj" }` in `premake5.lua` |
+| `invalid value 'C++23' for cppdialect` | Using old premake5 bundled with Walnut | Run `scripts\Setup.bat` (auto-downloads newer version) or manually download premake5 5.0.0-beta8 |
 
 ## LICENSE
 The project uses `MIT License`.
