@@ -6,7 +6,7 @@
 
 ## OVERVIEW
 
-GPU-accelerated real-time path tracer — C++20 + CUDA + Vulkan via Walnut (ImGui) framework. Single light source: emissive materials. No sky/env light.
+GPU-accelerated real-time path tracer — C++23 + CUDA + Vulkan via Walnut (ImGui) framework. Single light source: emissive materials. No sky/env light.
 
 ## STRUCTURE
 

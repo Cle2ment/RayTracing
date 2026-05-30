@@ -1,5 +1,6 @@
 -- CUDA Toolkit Detection (environment variable only, no hardcoded paths)
 local cudaPath = os.getenv("CUDA_PATH")
+   or os.getenv("CUDA_PATH_V13_3")
    or os.getenv("CUDA_PATH_V13_2")
    or os.getenv("CUDA_PATH_V12_8")
    or os.getenv("CUDA_PATH_V12_6")
@@ -11,7 +12,7 @@ local cudaFound = cudaPath ~= nil and os.isdir(cudaPath)
 if not cudaFound then
    print("NOTE: CUDA_PATH not set or invalid. Building CPU-only path tracer.")
    print("      To enable GPU acceleration, set CUDA_PATH to your CUDA Toolkit directory.")
-   print("      Example: setx CUDA_PATH \"C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v13.2\"")
+   print("      Example: setx CUDA_PATH \"C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v13.3\"")
 end
 
 -- CUDA Architecture Targets (virtual + real)
@@ -37,7 +38,7 @@ end
 project "RayTracing"
    kind "ConsoleApp"
    language "C++"
-   cppdialect "C++20"
+   cppdialect "C++23"
    targetdir "bin/%{cfg.buildcfg}"
    staticruntime "off"
 
@@ -82,7 +83,7 @@ project "RayTracing"
       -- Linker automatically picks up all .obj files from $(IntDir)
       local nvccCmd = '"' .. cudaPath .. '/bin/nvcc"'
          .. ' -ccbin="$(VCToolsInstallDir)bin\\Hostx64\\x64"'
-          .. ' -lineinfo --use_fast_math'
+          .. ' -lineinfo --use_fast_math --std=c++20'
          .. ' -I"' .. cudaPath .. '/include"'
          .. ' -I"' .. path.getabsolute("../Walnut/vendor/imgui") .. '"'
          .. ' -I"' .. path.getabsolute("../Walnut/vendor/glfw/include") .. '"'

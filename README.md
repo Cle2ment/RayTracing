@@ -3,14 +3,14 @@
 [English](/README.md) | [中文](/docs/README_zh-CN.md) | [Français](/docs/README_fr-FR.md)
 
 ![Static Badge](https://img.shields.io/badge/Inspired_by-TheCherno-yellow?logo=Github)
-![Static Badge](https://img.shields.io/badge/Language-C++20-blue?logo=cplusplus)
+![Static Badge](https://img.shields.io/badge/Language-C++23-blue?logo=cplusplus)
 ![Static Badge](https://img.shields.io/badge/GPU-CUDA-green?logo=nvidia)
 ![Static Badge](https://img.shields.io/badge/Built_by-Premake-blue?logo=lua)
 ![Static Badge](https://img.shields.io/badge/License-MIT-green)
 
 ## Description
 
-A real-time interactive path tracer built with C++20 and the Walnut application framework. **GPU-accelerated via NVIDIA CUDA** — the entire path tracing pipeline (ray generation, intersection, shading, accumulation) runs on the GPU. Falls back to CPU multi-threaded rendering when CUDA is not available.
+A real-time interactive path tracer built with C++23 and the Walnut application framework. **GPU-accelerated via NVIDIA CUDA** — the entire path tracing pipeline (ray generation, intersection, shading, accumulation) runs on the GPU. Falls back to CPU multi-threaded rendering when CUDA is not available.
 
 ### Architecture
 
@@ -112,7 +112,7 @@ RayTracing/
 [![Build (CUDA + Vulkan)](https://github.com/Cle2ment/RayTracing/actions/workflows/build.yml/badge.svg)](https://github.com/Cle2ment/RayTracing/actions/workflows/build.yml)
 
 GitHub Actions builds on every push and pull request:
-- **Windows Server 2022** with CUDA 12.8 + Vulkan SDK
+- **Windows Server 2025** with CUDA 13.2 + Vulkan SDK
 - Debug and Release configurations
 - Build artifacts available for download on Release builds
 

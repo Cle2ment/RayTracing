@@ -73,8 +73,8 @@ int CUDARenderer_Init(CUDARenderState* state)
     cudaError_t err = cudaGetDeviceCount(&deviceCount);
     if (err != cudaSuccess || deviceCount == 0)
     {
-        fprintf(stderr, "[CUDA] No CUDA-capable device found (error: %s)\n",
-                cudaGetErrorString(err));
+		std::fprintf(stderr, "[CUDA] No CUDA-capable device found (error: %s)\n",
+			cudaGetErrorString(err));
         return 0;
     }
 
@@ -82,16 +82,16 @@ int CUDARenderer_Init(CUDARenderState* state)
     err = cudaSetDevice(0);
     if (err != cudaSuccess)
     {
-        fprintf(stderr, "[CUDA] Failed to set device 0: %s\n",
-                cudaGetErrorString(err));
+		std::fprintf(stderr, "[CUDA] Failed to set device 0: %s\n",
+			cudaGetErrorString(err));
         return 0;
     }
 
     cudaDeviceProp prop;
     cudaGetDeviceProperties(&prop, 0);
-    printf("[CUDA] Using device: %s (Compute %d.%d, %zu MB)\n",
-           prop.name, prop.major, prop.minor,
-           prop.totalGlobalMem / (1024 * 1024));
+	std::printf("[CUDA] Using device: %s (Compute %d.%d, %zu MB)\n",
+	   prop.name, prop.major, prop.minor,
+	   prop.totalGlobalMem / (1024 * 1024));
 
     state->initialized = true;
     return 1;
@@ -122,9 +122,9 @@ void CUDARenderer_OnResize(CUDARenderState* state, uint32_t width, uint32_t heig
     state->gpuCamera.ImageHeight = height;
     state->gpuCamera.RayDirections = state->d_RayDirections;
 
-    printf("[CUDA] Resized to %ux%u (%.2f MB device memory)\n",
-           width, height,
-           static_cast<float>(state->pixelCount * (sizeof(float4) + sizeof(uint32_t) + sizeof(float3))) / (1024.0f * 1024.0f));
+	std::printf("[CUDA] Resized to %ux%u (%.2f MB device memory)\n",
+	   width, height,
+	   static_cast<float>(state->pixelCount * (sizeof(float4) + sizeof(uint32_t) + sizeof(float3))) / (1024.0f * 1024.0f));
 }
 
 void CUDARenderer_UploadScene(
@@ -244,7 +244,7 @@ void CUDARenderer_Render(
     cudaError_t err = cudaDeviceSynchronize();
     if (err != cudaSuccess)
     {
-        fprintf(stderr, "[CUDA] Kernel error: %s\n", cudaGetErrorString(err));
+		std::fprintf(stderr, "[CUDA] Kernel error: %s\n", cudaGetErrorString(err));
     }
 }
 
@@ -292,8 +292,8 @@ void CUDARenderer_CheckError(const char* file, int line)
     cudaError_t err = cudaGetLastError();
     if (err != cudaSuccess)
     {
-        fprintf(stderr, "[CUDA] Error at %s:%d - %s\n",
-                file, line, cudaGetErrorString(err));
+		std::fprintf(stderr, "[CUDA] Error at %s:%d - %s\n",
+			file, line, cudaGetErrorString(err));
     }
 }
 

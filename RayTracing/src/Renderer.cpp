@@ -5,6 +5,7 @@
 #include <cstring>
 #include <execution>
 #include <limits>
+#include <ranges>
 
 #ifndef WL_CUDA
 
