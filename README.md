@@ -136,8 +136,8 @@ GitHub Actions builds on every push and pull request:
 The Ray Tracing project is still under development.
 
 Here is the current demonstration of the project.\
-![Ray Tracing Random](screenshots/example-random.png)
-![Ray Tracing Accumulate](screenshots/example-accumulate.png)
+![Ray Tracing Random](/screenshots/example-random.png)
+![Ray Tracing Accumulate](/screenshots/example-accumulate.png)
 
 ## About WalnutAppTemplate
 - Description\
