@@ -1,96 +1,62 @@
-# Ray Tracing — Traceur de Chemins Accéléré par GPU NVIDIA
+# Ray Tracing: Démo RT accélérée
 
 [English](/README.md) | [中文](/docs/README_zh-CN.md) | [Français](/docs/README_fr-FR.md)
 
-![Static Badge](https://img.shields.io/badge/Inspiré_par-TheCherno-yellow?logo=Github)
-![Static Badge](https://img.shields.io/badge/Langage-C++23-blue?logo=cplusplus)
+![Static Badge](https://img.shields.io/badge/Language-C++23-blue?logo=cplusplus)
 ![Static Badge](https://img.shields.io/badge/GPU-CUDA-green?logo=nvidia)
-![Static Badge](https://img.shields.io/badge/Construit_avec-Premake-blue?logo=lua)
-![Static Badge](https://img.shields.io/badge/Licence-MIT-green)
+![Static Badge](https://img.shields.io/badge/CPU-ISPC-cyan?logo=intel)
+![Static Badge](https://img.shields.io/badge/Built_by-Premake-blue?logo=lua)
+![Static Badge](https://img.shields.io/badge/License-MIT-green)
+[![Build](https://github.com/Cle2ment/RayTracing/actions/workflows/build.yml/badge.svg)](https://github.com/Cle2ment/RayTracing/actions/workflows/build.yml)
 
-## Description
+## Aperçu
 
-Un traceur de chemins interactif en temps réel construit avec C++23 et le framework d'application Walnut. **Accéléré par GPU via NVIDIA CUDA** — l'ensemble du pipeline de lancer de rayons (génération de rayons, intersection, ombrage, accumulation) s'exécute sur le GPU. Retour au rendu multi-threadé CPU lorsque CUDA n'est pas disponible.
+Un path tracer interactif en temps réel construit avec C++23 sur le framework d'application [Walnut](https://github.com/TheCherno/Walnut). **Accéléré GPU via NVIDIA CUDA** et **accéléré CPU via Intel ISPC** — l'ensemble du pipeline de path tracing s'exécute sur le GPU lorsque CUDA est disponible, avec un fallback CPU SIMD via ISPC (AVX2/AVX-512).
+
+### Backends de rendu
+
+| Backend | Accélération | Quand utilisé |
+|---------|-------------|---------------|
+| **CUDA GPU** | GPU NVIDIA (SM 7.5+) | `CUDA_PATH` détecté |
+| **ISPC CPU** | AVX2 + AVX-512 SIMD | `vendor/ispc/bin/ispc.exe` détecté |
+| **C++ CPU** | `std::execution::par` multi-threaded | Secours |
 
 ### Architecture
 
-| Composant | CPU Multi-Threadé | GPU (CUDA) |
-|-----------|-------------------|------------|
-| Génération de rayons | `std::execution::par` sur les threads CPU | Kernel CUDA — un thread par pixel |
-| Intersection Rayon-Sphère | Boucle brute-force (CPU) | Fonction `__device__` (GPU) |
-| Lancer de chemins (5 rebonds) | Boucle scalaire CPU | Parallélisme SIMT GPU |
-| Génération de nombres aléatoires | PCG Hash (CPU) | PCG Hash (GPU `__device__`) |
-| Tampon d'accumulation | `glm::vec4[]` hôte | `float4[]` périphérique |
+| Composant | CPU | GPU (CUDA) |
+|-----------|-----|------------|
+| Génération de rayons | ISPC `foreach` ou `std::execution::par` | Kernel CUDA — un thread par pixel |
+| Intersection rayon-sphère | Boucle force brute | Fonction `__device__` |
+| Path Tracing (5 rebonds) | BRDF Lambertienne diffuse | BRDF Lambertienne diffuse |
+| Génération de nombres aléatoires | PCG Hash | PCG Hash (`__device__`) |
+| Roulette russe | Après 3 rebonds | Après 3 rebonds |
 | Affichage | Walnut::Image (Vulkan) | Walnut::Image (Vulkan) via copie D2H |
-| Roulette russe | CPU | GPU |
 
-**Disposition du kernel GPU** : blocs de 16×16 threads, chaque pixel obtient un thread CUDA. Le `RenderKernel` effectue le lancer de chemins complet par pixel, incluant l'intersection rayon-sphère, la terminaison par roulette russe, l'échantillonnage de la BRDF Lambertienne diffuse et l'accumulation progressive.
+**Disposition des kernels GPU** : Blocs de threads 16×16, un thread CUDA par pixel.
 
 ## Prérequis
 
-- **GPU NVIDIA** (optionnel) avec capacité de calcul ≥ 7.5 (Turing / Ampere / Ada / Blackwell)
+- **GPU NVIDIA** (optionnel) avec capacité de calcul ≥ 7.5
   - sm_75 : GTX 16xx, RTX 20xx
   - sm_86 : RTX 30xx
   - sm_89 : RTX 40xx
   - sm_120 : RTX 50xx
-- **CUDA Toolkit 12.0+** (optionnel, 13.x recommandé pour l'accélération GPU)
+- **CUDA Toolkit 12.0+** (optionnel, 13.x recommandé)
 - **Vulkan SDK 1.4+**
-- **Visual Studio 2026** (ou 2022, rétrocompatible) avec support C++23
+- **Visual Studio 2026** (ou 2022) avec support C++23
+- **ISPC** — téléchargé automatiquement par `scripts\Setup.bat`, aucune installation manuelle nécessaire
 
-## Comment compiler
+## Démarrage rapide
 
-### 1. Cloner le dépôt
 ```bash
+# Clonez avec les sous-modules
 git clone --recursive https://github.com/Cle2ment/RayTracing.git
 cd RayTracing
-```
 
-### 2. Installer les dépendances
-- **[CUDA Toolkit](https://developer.nvidia.com/cuda-downloads)** — Requis pour le rendu GPU. La variable d'environnement `CUDA_PATH` est définie automatiquement par l'installateur.
-- **[Vulkan SDK](https://vulkan.lunarg.com/)** — Requis pour l'affichage. Installez-le à l'emplacement par défaut.
+# Générer la solution VS2026 (télécharge automatiquement premake5 + ISPC)
+scripts\Setup.bat
 
-### 3. Générer les fichiers de projet
-```bash
-cd scripts
-Setup.bat
-```
-Ceci exécute **Premake5 5.0.0-beta8** pour générer les fichiers de solution Visual Studio 2026. Le script télécharge automatiquement premake5 s'il n'est pas présent (la version fournie avec Walnut ne supporte pas `cppdialect "C++23"`). Le système de build détecte automatiquement CUDA et active l'accélération GPU.
-
-### 4. Compiler et exécuter
-Ouvrez `RayTracing.slnx` dans Visual Studio 2026 et compilez (les modes Release ou Dist sont recommandés pour les performances).
-
-### Compiler sans CUDA
-Si CUDA Toolkit n'est pas installé, le projet se compile en tant que traceur de chemins CPU uniquement utilisant `std::execution::par`. Le système de build définit `WL_CUDA` uniquement lorsque CUDA est détecté.
-
-### Accélération ISPC (optionnelle)
-[ISPC](https://github.com/ispc/ispc) (Intel SPMD Program Compiler) fournit une accélération SIMD pour le traceur de chemins CPU. Le script `Setup.bat` télécharge automatiquement ISPC v1.30.0 dans `vendor/ispc/`. Lorsqu'il est détecté, le système de build définit `WL_ISPC` et active le lancer de chemins vectorisé AVX2+AVX-512.
-
-Pour l'installation manuelle : téléchargez `ispc-v1.30.0-windows.zip` depuis la [page des versions ISPC](https://github.com/ispc/ispc/releases/tag/v1.30.0) et extrayez son contenu dans `vendor/ispc/`.
-
-## Pipeline de rendu
-
-```
-Caméra (CPU)                    Scène (CPU)
-    │                                │
-    ├─ Directions de rayons ─┐   ┌─── Sphères + Matériaux
-    │                        │   │
-    ▼                        ▼   ▼
-┌─────────────────────────────────────────┐
-│           CUDARenderer.cu               │
-│                                         │
-│  RenderKernel <<<grid, block>>>         │
-│    └─ PerPixel(x, y)                    │
-│         └─ pour rebond dans 0..5 :      │
-│              └─ TraceRay()              │
-│                   └─ boucle sphères (GPU)│
-│              └─ Roulette russe          │
-│              └─ BRDF diffuse            │
-│    └─ Accumuler + Mappage ton           │
-│    └─ Écrire sortie RGBA8               │
-└─────────────────────────────────────────┘
-    │
-    ▼ (cudaMemcpy D2H)
-Walnut::Image (Vulkan) ──► Affichage
+# Ouvrez RayTracing.slnx dans Visual Studio, construisez Release x64
 ```
 
 ## Structure des fichiers
@@ -99,65 +65,38 @@ Walnut::Image (Vulkan) ──► Affichage
 RayTracing/
 ├── src/
 │   ├── WalnutApp.cpp          # Point d'entrée, interface ImGui, configuration de la scène
-│   ├── Renderer.h/cpp         # Classe Renderer (distribution CPU/GPU)
-│   ├── Camera.h/cpp           # Caméra (CPU), génération des directions de rayons
-│   ├── Ray.h                  # Structure Ray (CPU)
-│   ├── Scene.h                # Données de la scène (sphères CPU + matériaux)
+│   ├── Renderer.h/cpp         # Rendu (répartition CPU/GPU/ISPC)
+│   ├── Camera.h/cpp           # Caméra FPS, pré-calcul de la direction des rayons
+│   ├── Ray.h                  # Structure Ray
+│   ├── Scene.h                # Données Material, Sphere, Scene
+│   ├── PathTracer.ispc        # Kernel ISPC SIMD de path tracing
 │   ├── CUDATypes.cuh          # Structures de données GPU
 │   ├── CUDARenderer.cuh       # Kernels GPU + fonctions device
-│   ├── CUDARenderer.cu        # Wrappers hôtes CUDA (liaison C)
-│   └── CUDARenderer.h         # Interface C++ hôte + helpers de paquetage
-├── premake5.lua               # Configuration de build (+ support CUDA)
-├── .github/workflows/build.yml # Pipeline CI/CD
-└── README.md
+│   ├── CUDARenderer.cu        # Wrappers hôte CUDA (liaison C)
+│   └── CUDARenderer.h         # Interface hôte C++ + helpers de packing
+├── premake5.lua               # Configuration de build (détection CUDA + ISPC)
+├── scripts/Setup.bat          # Génération de projet en un clic
+└── .github/workflows/         # CI/CD (CUDA 13.3 + Vulkan)
 ```
-
-## CI/CD
-
-[![Build (CUDA + Vulkan)](https://github.com/Cle2ment/RayTracing/actions/workflows/build.yml/badge.svg)](https://github.com/Cle2ment/RayTracing/actions/workflows/build.yml)
-
-GitHub Actions compile à chaque push et pull request :
-- **Windows Server 2025** avec CUDA 13.3 + Vulkan SDK
-- Configurations Debug et Release
-- Artefacts de compilation disponibles en téléchargement pour les builds Release
 
 ## Raccourcis clavier
 
 | Touche | Action |
 |--------|--------|
-| Clique droit + glisser | Rotation de la caméra |
-| W/A/S/D | Déplacement de la caméra |
-| Q/E | Déplacement vers le bas/haut |
-| Bouton Render | Déclencher un nouveau rendu |
-| Case à cocher Accumulate | Activer/désactiver le rendu progressif |
+| Bouton droit de la souris + glisser | Tourner la caméra |
+| W/A/S/D | Déplacer la caméra |
+| Q/E | Descendre/monter |
+| Bouton de rendu | Déclencher un nouveau rendu |
+| Accumuler | Activer/désactiver le rendu progressif |
+| Réinitialiser | Vider le tampon d'accumulation |
 
 ## Démonstration
 
-Le projet Ray Tracing est encore en développement.
-
-Voici la démonstration actuelle du projet.\
-![Ray Tracing Aléatoire](/screenshots/example-random.png)
-![Ray Tracing Accumulé](/screenshots/example-accumulate.png)
-
-## À propos de WalnutAppTemplate
-- Description\
-Ceci est un modèle d'application simple pour Walnut - contrairement à l'exemple dans le dépôt Walnut, celui-ci garde Walnut comme sous-module externe et est beaucoup plus pertinent pour construire des applications réelles. Voir le dépôt Walnut pour plus de détails.
-- Pour commencer\
-Une fois que vous avez cloné, vous pouvez personnaliser les fichiers `premake5.lua` et `WalnutApp/premake5.lua` selon vos préférences (par exemple, changer le nom de "WalnutApp" en autre chose). Une fois satisfait, exécutez `scripts/Setup.bat` pour générer les fichiers de solution/projet Visual Studio 2022. Votre application se trouve dans le répertoire `WalnutApp/`, avec un exemple de code de base dans `WalnutApp/src/WalnutApp.cpp`. Je recommande de modifier ce projet WalnutApp pour créer votre propre application, car tout est configuré et prêt à l'emploi.
+![Échantillonnage aléatoire](screenshots/example-random.png)
+![Accumulé](screenshots/example-accumulate.png)
 
 ## Dépannage
 
 | Symptôme | Cause | Solution |
 |----------|-------|----------|
-| La fenêtre est noire | Incompatibilité d'architecture CUDA | Vérifiez le modèle GPU, assurez-vous que `cudaArchs` dans `premake5.lua` inclut le bon `sm_XX` |
-| `no kernel image is available` | nvcc n'a pas compilé pour le GPU cible | Ajoutez le `-gencode=arch=compute_XX,code=sm_XX` correspondant |
-| `CUDA_PATH` non défini | Variable d'environnement manquante | Propriétés système → Variables d'environnement → Nouvelle `CUDA_PATH`, pointez vers le répertoire CUDA Toolkit |
-| Les fichiers `.cu` ne sont pas compilés lors de la compilation | `CUDA_PATH` non effectif au moment de la génération | Redémarrez le terminal, vérifiez que `echo %CUDA_PATH%` n'est pas vide, puis relancez `Setup.bat` |
-| Le linker signale `CUDARenderer_*` non défini | `CUDARenderer.obj` non lié | Vérifiez `linkoptions { "$(IntDir)CUDARenderer.obj" }` dans `premake5.lua` |
-| `invalid value 'C++23' for cppdialect` | Ancienne version de premake5 fournie avec Walnut | Exécutez `scripts\Setup.bat` (télécharge automatiquement une version plus récente) ou téléchargez manuellement premake5 5.0.0-beta8 |
-
-## LICENCE
-Le projet utilise la `Licence MIT`.
-
-## Copyright
-© Bonity, 2024
+| La zone d'affichage est noire | Incompat
