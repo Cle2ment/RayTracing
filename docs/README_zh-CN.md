@@ -8,9 +8,9 @@
 ![Static Badge](https://img.shields.io/badge/Built_by-Premake-blue?logo=lua)
 ![Static Badge](https://img.shields.io/badge/License-MIT-green)
 
-## 简介
+## 描述
 
-一个基于 C++23 和 Walnut 应用框架构建的实时交互式路径追踪器。**通过 NVIDIA CUDA 实现 GPU 加速** — 整个路径追踪管线（光线生成、求交、着色、累积）均在 GPU 上运行。当 CUDA 不可用时，回退到 CPU 多线程渲染。
+一个使用 C++23 和 Walnut 应用框架构建的实时交互式路径追踪器。**通过 NVIDIA CUDA 实现 GPU 加速** — 整个路径追踪管线（光线生成、求交、着色、累积）均在 GPU 上运行。当 CUDA 不可用时，回退至 CPU 多线程渲染。
 
 ### 架构
 
@@ -22,22 +22,22 @@
 | 随机数生成 | PCG 哈希（CPU） | PCG 哈希（GPU `__device__`） |
 | 累积缓冲区 | 主机 `glm::vec4[]` | 设备 `float4[]` |
 | 显示 | Walnut::Image（Vulkan） | 通过 D2H 拷贝的 Walnut::Image（Vulkan） |
-| 俄罗斯轮盘赌 | CPU | GPU |
+| 俄罗斯轮盘 | CPU | GPU |
 
-**GPU 内核布局**：16×16 线程块，每个像素对应一个 CUDA 线程。`RenderKernel` 对每个像素执行完整的路径追踪，包括光线-球体求交、俄罗斯轮盘赌终止、漫反射 BRDF 采样和渐进累积。
+**GPU 内核布局**：16×16 线程块，每个像素一个 CUDA 线程。`RenderKernel` 为每个像素执行完整的路径追踪，包括光线-球体求交、俄罗斯轮盘终止、Lambertian 漫反射 BRDF 采样和渐进累积。
 
-## 系统要求
+## 要求
 
-- **NVIDIA GPU**（可选）with Compute Capability ≥ 7.5（Turing / Ampere / Ada / Blackwell）
+- **NVIDIA GPU**（可选）计算能力 ≥ 7.5（图灵 / 安培 / 阿达 / 布莱克韦尔）
   - sm_75: GTX 16xx, RTX 20xx
   - sm_86: RTX 30xx
   - sm_89: RTX 40xx
   - sm_120: RTX 50xx
 - **CUDA Toolkit 12.0+**（可选，推荐 13.x，用于 GPU 加速）
 - **Vulkan SDK 1.4+**
-- **Visual Studio 2026**（或 2022，向下兼容）with C++23 support
+- **Visual Studio 2026**（或 2022，向下兼容）支持 C++23
 
-## 构建方法
+## 如何构建
 
 ### 1. 克隆仓库
 ```bash
@@ -46,21 +46,21 @@ cd RayTracing
 ```
 
 ### 2. 安装依赖
-- **[CUDA Toolkit](https://developer.nvidia.com/cuda-downloads)** — GPU 渲染所必需。安装程序会自动设置 `CUDA_PATH` 环境变量。
-- **[Vulkan SDK](https://vulkan.lunarg.com/)** — 显示所必需。安装到默认位置。
+- **[CUDA Toolkit](https://developer.nvidia.com/cuda-downloads)** — GPU 渲染所需。安装程序会自动设置 `CUDA_PATH` 环境变量。
+- **[Vulkan SDK](https://vulkan.lunarg.com/)** — 显示所需。安装至默认位置。
 
 ### 3. 生成项目文件
 ```bash
 cd scripts
 Setup.bat
 ```
-此命令运行 Premake5 生成 Visual Studio 2026 解决方案文件。构建系统会自动检测 CUDA 并启用 GPU 加速。
+这将运行 **Premake5 5.0.0-beta8** 生成 Visual Studio 2026 解决方案文件。该脚本会自动下载 premake5（如果不存在——Walnut 自带的版本不支持 `cppdialect "C++23"`）。构建系统会自动检测 CUDA 并启用 GPU 加速。
 
 ### 4. 构建并运行
-在 Visual Studio 2026 中打开 `RayTracing.slnx` 并构建（性能测试建议使用 Release 或 Dist 模式）。
+在 Visual Studio 2026 中打开 `RayTracing.slnx` 并构建（性能起见，推荐 Release 或 Dist 模式）。
 
 ### 无 CUDA 构建
-若未安装 CUDA Toolkit，项目将构建为仅使用 `std::execution::par` 的纯 CPU 路径追踪器。构建系统仅在检测到 CUDA 时定义 `WL_CUDA`。
+如果未安装 CUDA Toolkit，项目将构建为仅 CPU 的路径追踪器，使用 `std::execution::par`。构建系统仅在检测到 CUDA 时定义 `WL_CUDA`。
 
 ## 渲染管线
 
@@ -94,14 +94,14 @@ Walnut::Image (Vulkan) ──► Display
 RayTracing/
 ├── src/
 │   ├── WalnutApp.cpp          # 入口点，ImGui UI，场景设置
-│   ├── Renderer.h/cpp         # 渲染器类（CPU/GPU 分发）
-│   ├── Camera.h/cpp           # 相机（CPU），光线方向生成
-│   ├── Ray.h                  # 光线结构体（CPU）
+│   ├── Renderer.h/cpp         # Renderer 类（CPU/GPU 调度）
+│   ├── Camera.h/cpp           # Camera（CPU），光线方向生成
+│   ├── Ray.h                  # Ray 结构体（CPU）
 │   ├── Scene.h                # 场景数据（CPU 球体 + 材质）
 │   ├── CUDATypes.cuh          # GPU 数据结构
 │   ├── CUDARenderer.cuh       # GPU 内核 + 设备函数
-│   ├── CUDARenderer.cu        # CUDA 主机包装器（C 链接）
-│   └── CUDARenderer.h         # 主机 C++ 接口 + 打包辅助函数
+│   ├── CUDARenderer.cu        # CUDA 主机封装（C 链接）
+│   └── CUDARenderer.h         # 主机 C++ 接口 + 打包辅助
 ├── premake5.lua               # 构建配置（+ CUDA 支持）
 ├── .github/workflows/build.yml # CI/CD 流水线
 └── README.md
@@ -112,33 +112,33 @@ RayTracing/
 [![Build (CUDA + Vulkan)](https://github.com/Cle2ment/RayTracing/actions/workflows/build.yml/badge.svg)](https://github.com/Cle2ment/RayTracing/actions/workflows/build.yml)
 
 GitHub Actions 在每次推送和拉取请求时构建：
-- **Windows Server 2022**，CUDA 12.8 + Vulkan SDK
+- **Windows Server 2025**，含 CUDA 13.3 + Vulkan SDK
 - Debug 和 Release 配置
-- Release 构建可下载构建产物
+- Release 构建提供可下载的构建产物
 
-## 快捷键
+## 键位绑定
 
-| 按键 | 操作 |
+| 键 | 操作 |
 |-----|--------|
 | 鼠标右键 + 拖动 | 旋转相机 |
 | W/A/S/D | 移动相机 |
 | Q/E | 向下/向上移动 |
-| Render 按钮 | 触发重新渲染 |
-| Accumulate 复选框 | 启用/禁用渐进渲染 |
+| 渲染按钮 | 触发重新渲染 |
+| 累积复选框 | 启用/禁用渐进渲染 |
 
 ## 演示
 
 光线追踪项目仍在开发中。
 
-以下是项目的当前演示。\
+以下是项目当前的演示。
 ![Ray Tracing Default Example](https://github.com/BoningtonChen/RayTracing/blob/master/Materials/RayTracing-example01.png)
 ![Ray Tracing Example](https://github.com/BoningtonChen/RayTracing/blob/master/Materials/RayTracing-example02.png)
 
 ## 关于 WalnutAppTemplate
-- **描述**\
-这是一个简单的 Walnut 应用模板——与 Walnut 仓库中的示例不同，本模板将 Walnut 作为外部子模块，更适合实际构建应用程序。更多详情请参阅 Walnut 仓库。
-- **入门指南**\
-克隆后，您可以根据需要自定义 `premake5.lua` 和 `WalnutApp/premake5.lua` 文件（例如，将名称从 "WalnutApp" 改为其他名称）。满意后，运行 `scripts/Setup.bat` 生成 Visual Studio 2022 解决方案/项目文件。您的应用程序位于 `WalnutApp/` 目录下，其中的 `WalnutApp/src/WalnutApp.cpp` 包含一些基本示例代码。建议修改该 WalnutApp 项目以创建您自己的应用程序，因为所有设置均已就绪。
+- 描述\
+这是一个简单的 Walnut 应用模板——与 Walnut 仓库中的示例不同，此模板将 Walnut 作为外部子模块，对于实际构建应用更加合理。详情请参阅 Walnut 仓库。
+- 入门\
+克隆后，您可以根据需要自定义 `premake5.lua` 和 `WalnutApp/premake5.lua` 文件（例如，将名称“WalnutApp”改为其他）。满意后，运行 `scripts/Setup.bat` 生成 Visual Studio 2022 解决方案/项目文件。您的应用位于 `WalnutApp/` 目录下，其中 `WalnutApp/src/WalnutApp.cpp` 提供了一些基本示例代码供您起步。建议修改 WalnutApp 项目以创建您自己的应用，因为所有设置均已准备就绪。
 
 ## 故障排除
 
@@ -149,9 +149,10 @@ GitHub Actions 在每次推送和拉取请求时构建：
 | `CUDA_PATH` 未设置 | 环境变量缺失 | 系统属性 → 环境变量 → 新建 `CUDA_PATH`，指向 CUDA Toolkit 目录 |
 | 构建时 `.cu` 文件未编译 | `CUDA_PATH` 未在生成时生效 | 重启终端，确认 `echo %CUDA_PATH%` 非空后重新 `Setup.bat` |
 | 链接器报 `CUDARenderer_*` 未定义 | `CUDARenderer.obj` 未被链接 | 检查 `premake5.lua` 中 `linkoptions { "$(IntDir)CUDARenderer.obj" }` |
+| `invalid value 'C++23' for cppdialect` | 使用了 Walnut 自带的旧版 premake5 | 运行 `scripts\Setup.bat`（它会自动下载新版）或手动下载 premake5 5.0.0-beta8 |
 
-## 许可证
-本项目采用 MIT 许可证。
+## 许可
+本项目使用 `MIT 许可证`。
 
 ## 版权
-© Bonity, 2024
+© Bonity，2024
