@@ -1,5 +1,5 @@
 @echo off
-pushd ..
+pushd %~dp0..
 
 :: Download premake5 beta8 if not present (Walnut-bundled version doesn't support C++23)
 if not exist premake5.exe (
