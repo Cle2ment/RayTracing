@@ -42,6 +42,10 @@ project "RayTracing"
    targetdir "bin/%{cfg.buildcfg}"
    staticruntime "off"
 
+   -- Treat all source files as UTF-8 (MSVC on Chinese Windows defaults to code page 936)
+   filter "toolset:msc*"
+      buildoptions { "/utf-8" }
+
    files { "src/**.h", "src/**.cpp" }
    if cudaFound then
       files { "src/**.cuh" }
@@ -99,7 +103,7 @@ project "RayTracing"
       filter "configurations:Debug"
          prebuildcommands {
             nvccCmd
-            .. ' -Xcompiler "/EHsc,/W3,/nologo,/Zi,/MDd"'
+            .. ' -Xcompiler "/EHsc,/W3,/nologo,/Zi,/MDd,/utf-8"'
             .. ' -G -DWL_DEBUG'
             .. ' --compile'
             .. ' -o "$(IntDir)CUDARenderer.obj"'
@@ -109,7 +113,7 @@ project "RayTracing"
       filter "configurations:Release"
          prebuildcommands {
             nvccCmd
-            .. ' -Xcompiler "/EHsc,/W3,/nologo,/Zi,/MD"'
+            .. ' -Xcompiler "/EHsc,/W3,/nologo,/Zi,/MD,/utf-8"'
             .. ' -O2 -DWL_RELEASE'
             .. ' --compile'
             .. ' -o "$(IntDir)CUDARenderer.obj"'
@@ -119,7 +123,7 @@ project "RayTracing"
       filter "configurations:Dist"
          prebuildcommands {
             nvccCmd
-            .. ' -Xcompiler "/EHsc,/W3,/nologo,/MD"'
+            .. ' -Xcompiler "/EHsc,/W3,/nologo,/MD,/utf-8"'
             .. ' -O2 -DWL_DIST'
             .. ' --compile'
             .. ' -o "$(IntDir)CUDARenderer.obj"'
