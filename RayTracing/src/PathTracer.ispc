@@ -4,19 +4,20 @@
 // ──────────────────────────────────────────────
 
 // ── RNG: PCG Hash (matches Renderer.cpp Utils::PCG_Hash exactly) ──
+// Using int32 instead of uint32: ISPC optimizes int32→float conversion
+// via native cvtsi2ss, avoiding the slow uint32→float code path.
 
-static inline float RandomFloat(varying uint32& seed) {
-    // Inline PCG hash — avoids uniform/varying signature mismatch
-    varying uint32 state = seed * 747796405u + 2891336453u;
-    varying uint32 word = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
-    seed = (word >> 22u) ^ word;
-    // Convert to float in [0, 1)
-    return (float)seed * 2.3283064365386963e-10f;  // 1.0f / 2^32
+static inline float RandomFloat(varying int32& seed) {
+    varying int32 state = seed * 747796405 + 2891336453;
+    varying int32 word  = ((state >> ((state >> 28) + 4)) ^ state) * 277803737;
+    seed = (word >> 22) ^ word;
+    // Convert to [0, 1): mask sign bit, then scale. int32→float is fast.
+    return (float)(seed & 0x7fffffff) * 2.3283064365386963e-10f;  // 1.0f / 2^31
 }
 
 static inline void RandomInUnitSphere(
     varying float result[3],
-    varying uint32& seed
+    varying int32& seed
 ) {
     varying float x, y, z, lenSq;
     // Rejection sampling in unit sphere
@@ -127,11 +128,11 @@ export void ISPCRenderPixels(
         varying float contribR = 1.0f, contribG = 1.0f, contribB = 1.0f;
 
         // ── RNG seed (per-pixel, per-frame) ──
-        varying uint32 seed = (uint32)i;
-        seed *= (uint32)frameIndex;
+        varying int32 seed = (int32)i;
+        seed *= (int32)frameIndex;
 
         for (uniform int bounce = 0; bounce < maxBounces; bounce++) {
-            seed += (uint32)bounce;
+            seed += (int32)bounce;
 
             // Trace ray against all spheres
             varying int hitObj;
@@ -148,12 +149,16 @@ export void ISPCRenderPixels(
             if (hitDist < 0.0f)
                 break;
 
-            // ── Compute hit position & normal ──
-            varying int matIdx = sphMatIdx[hitObj];
+            // ── Load hit data once (avoid repeated gathers on varying indices) ──
+            varying float hsx = sphPosX[hitObj];
+            varying float hsy = sphPosY[hitObj];
+            varying float hsz = sphPosZ[hitObj];
+            varying int   hmi = sphMatIdx[hitObj];
 
-            varying float hitPosX = rOrigX - sphPosX[hitObj] + rDirX * hitDist;
-            varying float hitPosY = rOrigY - sphPosY[hitObj] + rDirY * hitDist;
-            varying float hitPosZ = rOrigZ - sphPosZ[hitObj] + rDirZ * hitDist;
+            // ── Compute hit position & normal using loaded locals ──
+            varying float hitPosX = rOrigX - hsx + rDirX * hitDist;
+            varying float hitPosY = rOrigY - hsy + rDirY * hitDist;
+            varying float hitPosZ = rOrigZ - hsz + rDirZ * hitDist;
 
             varying float normalLen = sqrt(hitPosX * hitPosX + hitPosY * hitPosY + hitPosZ * hitPosZ);
             varying float normX = hitPosX, normY = hitPosY, normZ = hitPosZ;
@@ -165,24 +170,27 @@ export void ISPCRenderPixels(
             }
 
             // World-space hit position
-            hitPosX += sphPosX[hitObj];
-            hitPosY += sphPosY[hitObj];
-            hitPosZ += sphPosZ[hitObj];
+            hitPosX += hsx;
+            hitPosY += hsy;
+            hitPosZ += hsz;
+
+            // ── Load material data once ──
+            varying float emR = matEmissionR[hmi] * matEmissionPower[hmi];
+            varying float emG = matEmissionG[hmi] * matEmissionPower[hmi];
+            varying float emB = matEmissionB[hmi] * matEmissionPower[hmi];
+            varying float alR = matAlbedoR[hmi];
+            varying float alG = matAlbedoG[hmi];
+            varying float alB = matAlbedoB[hmi];
 
             // ── Accumulate emission (BEFORE albedo attenuation) ──
-            // emission = emissionColor * emissionPower
-            varying float emR = matEmissionR[matIdx] * matEmissionPower[matIdx];
-            varying float emG = matEmissionG[matIdx] * matEmissionPower[matIdx];
-            varying float emB = matEmissionB[matIdx] * matEmissionPower[matIdx];
-
             lightR += contribR * emR;
             lightG += contribG * emG;
             lightB += contribB * emB;
 
             // ── Attenuate contribution by albedo ──
-            contribR *= matAlbedoR[matIdx];
-            contribG *= matAlbedoG[matIdx];
-            contribB *= matAlbedoB[matIdx];
+            contribR *= alR;
+            contribG *= alG;
+            contribB *= alB;
 
             // ── Russian roulette (after 3 guaranteed bounces) ──
             if (bounce > 2) {
