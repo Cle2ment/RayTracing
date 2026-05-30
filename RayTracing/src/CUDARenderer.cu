@@ -1,6 +1,9 @@
 #include "CUDARenderer.cuh"
 
 #include <cstdio>
+// NOTE: std::print / std::println (C++23 <print>) is not available here
+// because NVCC cannot forward --std=c++23 to the MSVC host compiler.
+// MSVC only supports /std:c++latest (not /std:c++23), so NVCC falls back.
 
 // ──────────────────────────────────────────────
 // Host wrapper functions (C linkage for interop)

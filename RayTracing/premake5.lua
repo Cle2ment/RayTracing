@@ -83,8 +83,11 @@ project "RayTracing"
       -- Linker automatically picks up all .obj files from $(IntDir)
       local nvccCmd = '"' .. cudaPath .. '/bin/nvcc"'
          .. ' -ccbin="$(VCToolsInstallDir)bin\\Hostx64\\x64"'
-          .. ' -lineinfo --use_fast_math --std=c++20'
+          .. ' -lineinfo --use_fast_math --std=c++23'
          .. ' -I"' .. cudaPath .. '/include"'
+         -- NOTE: --std=c++23 applies to NVCC device code only.
+         -- NVCC cannot forward C++23 to MSVC (MSVC uses /std:c++latest,
+         -- not /std:c++23), so host code in .cu files stays at MSVC default.
          .. ' -I"' .. path.getabsolute("../Walnut/vendor/imgui") .. '"'
          .. ' -I"' .. path.getabsolute("../Walnut/vendor/glfw/include") .. '"'
          .. ' -I"' .. path.getabsolute("../Walnut/vendor/glm") .. '"'

@@ -75,14 +75,18 @@ struct float3
 };
 
 // Memory layout must match GPUSphere in CUDATypes.cuh
+// Compile-time enforcement via static_assert in CUDATypes.cuh
 struct GPUPackedSphere
 {
     float Position[3];
     float Radius;
     int   MaterialIndex;
 };
+static_assert(sizeof(GPUPackedSphere) == 20, "GPUPackedSphere must be 20 bytes — must match GPUSphere");
+static_assert(alignof(GPUPackedSphere) == 4,  "GPUPackedSphere alignment must match GPUSphere");
 
 // Memory layout must match GPUMaterial in CUDATypes.cuh
+// Compile-time enforcement via static_assert in CUDATypes.cuh
 struct GPUPackedMaterial
 {
     float Albedo[3];
@@ -91,5 +95,7 @@ struct GPUPackedMaterial
     float EmissionColor[3];
     float EmissionPower;
 };
+static_assert(sizeof(GPUPackedMaterial) == 36, "GPUPackedMaterial must be 36 bytes — must match GPUMaterial");
+static_assert(alignof(GPUPackedMaterial) == 4,  "GPUPackedMaterial alignment must match GPUMaterial");
 
 #endif // __cplusplus

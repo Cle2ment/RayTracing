@@ -112,7 +112,7 @@ RayTracing/
 [![Build (CUDA + Vulkan)](https://github.com/Cle2ment/RayTracing/actions/workflows/build.yml/badge.svg)](https://github.com/Cle2ment/RayTracing/actions/workflows/build.yml)
 
 GitHub Actions builds on every push and pull request:
-- **Windows Server 2025** with CUDA 13.2 + Vulkan SDK
+- **Windows Server 2025** with CUDA 13.3 + Vulkan SDK
 - Debug and Release configurations
 - Build artifacts available for download on Release builds
 
