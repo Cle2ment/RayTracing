@@ -20,6 +20,10 @@ struct GPUSphere
     int    MaterialIndex;
 };
 
+// Compile-time memory layout contract with host-side GPUPackedSphere (CUDARenderer.h)
+static_assert(sizeof(GPUSphere) == 20, "GPUSphere must be 20 bytes — must match GPUPackedSphere");
+static_assert(alignof(GPUSphere) == 4,  "GPUSphere alignment must match GPUPackedSphere");
+
 struct GPUMaterial
 {
     float3 Albedo;
@@ -28,6 +32,10 @@ struct GPUMaterial
     float3 EmissionColor;
     float  EmissionPower;
 };
+
+// Compile-time memory layout contract with host-side GPUPackedMaterial (CUDARenderer.h)
+static_assert(sizeof(GPUMaterial) == 36, "GPUMaterial must be 36 bytes — must match GPUPackedMaterial");
+static_assert(alignof(GPUMaterial) == 4,  "GPUMaterial alignment must match GPUPackedMaterial");
 
 struct GPUHitPayload
 {

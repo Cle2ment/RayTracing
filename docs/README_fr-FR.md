@@ -3,14 +3,14 @@
 [English](/README.md) | [中文](/docs/README_zh-CN.md) | [Français](/docs/README_fr-FR.md)
 
 ![Static Badge](https://img.shields.io/badge/Inspired_by-TheCherno-yellow?logo=Github)
-![Static Badge](https://img.shields.io/badge/Language-C++20-blue?logo=cplusplus)
+![Static Badge](https://img.shields.io/badge/Language-C++23-blue?logo=cplusplus)
 ![Static Badge](https://img.shields.io/badge/GPU-CUDA-green?logo=nvidia)
 ![Static Badge](https://img.shields.io/badge/Built_by-Premake-blue?logo=lua)
 ![Static Badge](https://img.shields.io/badge/License-MIT-green)
 
 ## Description
 
-Un traceur de chemins interactif temps réel construit avec C++20 et le framework d'application Walnut. **Accéléré par GPU via NVIDIA CUDA** — l'ensemble du pipeline de lancer de rayons (génération de rayons, intersection, ombrage, accumulation) s'exécute sur le GPU. Il retombe sur le rendu multi-thread CPU lorsque CUDA n'est pas disponible.
+Un traceur de chemins interactif temps réel construit avec C++23 et le framework d'application Walnut. **Accéléré par GPU via NVIDIA CUDA** — l'ensemble du pipeline de lancer de rayons (génération de rayons, intersection, ombrage, accumulation) s'exécute sur le GPU. Il retombe sur le rendu multi-thread CPU lorsque CUDA n'est pas disponible.
 
 ### Architecture
 
@@ -35,7 +35,7 @@ Un traceur de chemins interactif temps réel construit avec C++20 et le framewor
   - sm_120 : RTX 50xx
 - **CUDA Toolkit 12.0+**（可选，推荐 13.x，用于 GPU 加速）
 - **Vulkan SDK 1.4+**
-- **Visual Studio 2026**（ou 2022, rétrocompatible）avec prise en charge de C++20
+- **Visual Studio 2026**（ou 2022, rétrocompatible）avec prise en charge de C++23
 
 ## Comment compiler
 
@@ -112,7 +112,7 @@ RayTracing/
 [![Build (CUDA + Vulkan)](https://github.com/Cle2ment/RayTracing/actions/workflows/build.yml/badge.svg)](https://github.com/Cle2ment/RayTracing/actions/workflows/build.yml)
 
 GitHub Actions construit à chaque push et pull request :
-- **Windows Server 2022** avec CUDA 12.8 + Vulkan SDK
+- **Windows Server 2025** avec CUDA 13.2 + Vulkan SDK
 - Configurations Debug et Release
 - Les artefacts de build sont disponibles en téléchargement pour les builds Release
 

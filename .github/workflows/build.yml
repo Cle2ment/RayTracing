@@ -41,24 +41,25 @@ jobs:
         id: cache-cuda
         uses: actions/cache@v4
         with:
-          path: C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.2
-          key: cuda-13.2.0-windows-2025-vs2026-v1
+          path: C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.3
+          key: cuda-13.3.0-windows-2025-vs2026-v1
 
       # ── CUDA: install only on cache miss ──
+      # Uses mjun0812/setup-cuda (not Jimver/cuda-toolkit) because Jimver
+      # caps at 13.2, while setup-cuda resolves versions dynamically from
+      # NVIDIA's CDN, supporting 13.3+.
       - name: Install CUDA Toolkit
         if: steps.cache-cuda.outputs.cache-hit != 'true'
-        uses: Jimver/cuda-toolkit@v0.2.35
+        uses: mjun0812/setup-cuda@v1
         with:
-          cuda: '13.2.0'
-          method: 'network'
-          sub-packages: '[]'
-          non-cuda-sub-packages: '[]'
+          version: '13.3'
+          method: 'auto'
 
       # ── CUDA: set environment even on cache hit ──
       - name: Set CUDA Environment
         shell: pwsh
         run: |
-          $cudaPath = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.2"
+          $cudaPath = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.3"
           echo "CUDA_PATH=$cudaPath" >> $env:GITHUB_ENV
           echo "$cudaPath\bin" >> $env:GITHUB_PATH
 

@@ -3,14 +3,14 @@
 [English](/README.md) | [中文](/docs/README_zh-CN.md) | [Français](/docs/README_fr-FR.md)
 
 ![Static Badge](https://img.shields.io/badge/Inspired_by-TheCherno-yellow?logo=Github)
-![Static Badge](https://img.shields.io/badge/Language-C++20-blue?logo=cplusplus)
+![Static Badge](https://img.shields.io/badge/Language-C++23-blue?logo=cplusplus)
 ![Static Badge](https://img.shields.io/badge/GPU-CUDA-green?logo=nvidia)
 ![Static Badge](https://img.shields.io/badge/Built_by-Premake-blue?logo=lua)
 ![Static Badge](https://img.shields.io/badge/License-MIT-green)
 
 ## Description
 
-A real-time interactive path tracer built with C++20 and the Walnut application framework. **GPU-accelerated via NVIDIA CUDA** — the entire path tracing pipeline (ray generation, intersection, shading, accumulation) runs on the GPU. Falls back to CPU multi-threaded rendering when CUDA is not available.
+A real-time interactive path tracer built with C++23 and the Walnut application framework. **GPU-accelerated via NVIDIA CUDA** — the entire path tracing pipeline (ray generation, intersection, shading, accumulation) runs on the GPU. Falls back to CPU multi-threaded rendering when CUDA is not available.
 
 ### Architecture
 
@@ -35,7 +35,7 @@ A real-time interactive path tracer built with C++20 and the Walnut application 
   - sm_120: RTX 50xx
 - **CUDA Toolkit 12.0+**（可选，推荐 13.x，用于 GPU 加速）
 - **Vulkan SDK 1.4+**
-- **Visual Studio 2026**（或 2022，向下兼容）with C++20 support
+- **Visual Studio 2026**（或 2022，向下兼容）with C++23 support
 
 ## How To Build
 
@@ -54,7 +54,7 @@ cd RayTracing
 cd scripts
 Setup.bat
 ```
-This runs Premake5 to generate Visual Studio 2026 solution files. The build system automatically detects CUDA and enables GPU acceleration.
+This runs **Premake5 5.0.0-beta8** to generate Visual Studio 2026 solution files. The script automatically downloads premake5 if not present (the version bundled with Walnut does not support `cppdialect "C++23"`). The build system automatically detects CUDA and enables GPU acceleration.
 
 ### 4. Build & Run
 Open `RayTracing.slnx` in Visual Studio 2026 and build (Release or Dist mode recommended for performance).
@@ -112,7 +112,7 @@ RayTracing/
 [![Build (CUDA + Vulkan)](https://github.com/Cle2ment/RayTracing/actions/workflows/build.yml/badge.svg)](https://github.com/Cle2ment/RayTracing/actions/workflows/build.yml)
 
 GitHub Actions builds on every push and pull request:
-- **Windows Server 2022** with CUDA 12.8 + Vulkan SDK
+- **Windows Server 2025** with CUDA 13.3 + Vulkan SDK
 - Debug and Release configurations
 - Build artifacts available for download on Release builds
 
@@ -149,6 +149,7 @@ Once you've cloned, you can customize the `premake5.lua` and `WalnutApp/premake5
 | `CUDA_PATH` 未设置 | 环境变量缺失 | 系统属性 → 环境变量 → 新建 `CUDA_PATH`，指向 CUDA Toolkit 目录 |
 | 构建时 `.cu` 文件未编译 | `CUDA_PATH` 未在生成时生效 | 重启终端，确认 `echo %CUDA_PATH%` 非空后重新 `Setup.bat` |
 | 链接器报 `CUDARenderer_*` 未定义 | `CUDARenderer.obj` 未被链接 | 检查 `premake5.lua` 中 `linkoptions { "$(IntDir)CUDARenderer.obj" }` |
+| `invalid value 'C++23' for cppdialect` | 使用了 Walnut 自带的旧版 premake5 | 运行 `scripts\Setup.bat`（它会自动下载新版）或手动下载 premake5 5.0.0-beta8 |
 
 ## LICENSE
 The project uses `MIT License`.

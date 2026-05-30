@@ -19,6 +19,7 @@ bin-int/
 copilot*.md
 
 .omo/
+superpowers/
 
 # CUDA Build Artifacts
 *.obj
