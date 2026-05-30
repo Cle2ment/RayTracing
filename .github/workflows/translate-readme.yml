@@ -1,0 +1,91 @@
+name: Translate README
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'README.md'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  translate:
+    name: Translate & Commit
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Detect README.md Change
+        id: detect
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "workflow_dispatch — will translate"
+          else
+            BASE="${{ github.event.before }}"
+            if [[ -z "$BASE" || "$BASE" == "0000000000000000000000000000000000000000" ]]; then
+              BASE="HEAD~1"
+            fi
+            if git diff --name-only "$BASE" HEAD | grep -q "^README.md$"; then
+              echo "changed=true" >> $GITHUB_OUTPUT
+              echo "README.md changed — will translate"
+            else
+              echo "changed=false" >> $GITHUB_OUTPUT
+              echo "README.md not changed — skipping"
+            fi
+          fi
+
+      - name: Setup Python
+        if: steps.detect.outputs.changed == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install Dependencies
+        if: steps.detect.outputs.changed == 'true'
+        shell: bash
+        run: pip install openai
+
+      - name: Translate to Chinese
+        if: steps.detect.outputs.changed == 'true'
+        shell: bash
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        run: |
+          python .github/scripts/translate_readme.py \
+            --lang zh-CN --lang-name "Simplified Chinese" \
+            --output docs/README_zh-CN.md
+
+      - name: Translate to French
+        if: steps.detect.outputs.changed == 'true'
+        shell: bash
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        run: |
+          python .github/scripts/translate_readme.py \
+            --lang fr-FR --lang-name "French" \
+            --output docs/README_fr-FR.md
+
+      - name: Commit Translations
+        if: steps.detect.outputs.changed == 'true'
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/README_zh-CN.md docs/README_fr-FR.md
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git commit -m "docs: auto-translate README [skip ci]"
+          git push

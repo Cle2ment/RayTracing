@@ -66,7 +66,7 @@ def main():
 
     try:
         response = client.chat.completions.create(
-            model="deepseek-v4-flash",
+            model="deepseek-chat",  # More capable than v4-flash for non-English translation
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
@@ -80,9 +80,13 @@ def main():
 
     translated = response.choices[0].message.content
 
+    if not translated or not translated.strip():
+        print(f"ERROR: Translation ({args.lang}) returned empty content", file=sys.stderr)
+        sys.exit(1)
+
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(translated, encoding="utf-8")
-    print(f"Translation ({args.lang}) written to {output_path}")
+    output_path.write_text(translated.strip() + "\n", encoding="utf-8")
+    print(f"Translation ({args.lang}) written to {output_path} ({len(translated)} chars)")
 
 
 if __name__ == "__main__":
