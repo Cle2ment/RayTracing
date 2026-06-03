@@ -6,7 +6,7 @@
 ![Static Badge](https://img.shields.io/badge/GPU-CUDA-green?logo=nvidia)
 ![Static Badge](https://img.shields.io/badge/CPU-ISPC-cyan?logo=intel)
 <br>
-![Static Badge](https://img.shields.io/badge/Build-Xmake-brightgreen?logo=xmake)
+![Static Badge](https://img.shields.io/badge/Build-Xmake-brightgreen?logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+PHBvbHlnb24gcG9pbnRzPSI2NCw0IDY0LDYyIDYyLDY0IDEsNjQgMCw2MyAwLDQwIDYwLDMiIGZpbGw9IiNmZmYiLz48L3N2Zz4=)
 ![Static Badge](https://img.shields.io/badge/Project-Premake-blue?logo=lua)
 [![Build](https://github.com/Cle2ment/RayTracing/actions/workflows/build.yml/badge.svg)](https://github.com/Cle2ment/RayTracing/actions/workflows/build.yml)
 ![Static Badge](https://img.shields.io/badge/License-MIT-green)
