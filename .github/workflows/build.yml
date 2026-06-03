@@ -93,30 +93,11 @@ jobs:
         run: |
           echo "VULKAN_SDK=C:\VulkanSDK\1.4.309.0" >> $env:GITHUB_ENV
 
-      # ── Premake5 ──
-      - name: Cache Premake5
-        id: cache-premake
-        uses: actions/cache@v4
+      # ── xmake ──
+      - name: Setup xmake
+        uses: xmake-io/github-action-setup-xmake@v1
         with:
-          path: vendor/premake
-          key: premake-5.0.0-beta8-v2
-
-      - name: Setup Premake5
-        if: steps.cache-premake.outputs.cache-hit != 'true'
-        shell: pwsh
-        run: |
-          $premakeVersion = "5.0.0-beta8"
-          $premakeUrl = "https://github.com/premake/premake-core/releases/download/v$premakeVersion/premake-$premakeVersion-windows.zip"
-          $premakeZip = "$env:RUNNER_TEMP\premake.zip"
-          Invoke-WebRequest -Uri $premakeUrl -OutFile $premakeZip
-          Expand-Archive -Path $premakeZip -DestinationPath "$env:RUNNER_TEMP\premake"
-          New-Item -ItemType Directory -Force -Path vendor\premake
-          Copy-Item "$env:RUNNER_TEMP\premake\premake5.exe" -Destination "vendor\premake\premake5.exe"
-
-      - name: Generate Project Files
-        shell: pwsh
-        run: |
-          vendor\premake\premake5.exe vs2026
+          xmake-version: latest
 
       # ── Build ──
       - name: Setup MSVC
@@ -128,13 +109,15 @@ jobs:
         if: matrix.configuration == 'Debug'
         shell: pwsh
         run: |
-          msbuild RayTracing.slnx /p:Configuration=Debug /p:Platform=x64 /m /v:minimal
+          xmake f -m debug
+          xmake build
 
       - name: Build (Release)
         if: matrix.configuration == 'Release'
         shell: pwsh
         run: |
-          msbuild RayTracing.slnx /p:Configuration=Release /p:Platform=x64 /m /v:minimal
+          xmake f -m release
+          xmake build
 
       - name: Verify Build Output
         shell: pwsh
