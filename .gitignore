@@ -3,10 +3,7 @@
 bin/
 bin-int/
 vendor/*
-!vendor/premake/
 !vendor/ispc/
-vendor/premake/*
-!vendor/premake/.gitkeep
 vendor/ispc/*
 !vendor/ispc/.gitkeep
 
@@ -41,3 +38,13 @@ nvcc_temp/
 
 *.bin
 *.exe
+
+# ISPC generated files
+RayTracing/src/PathTracer.ispc.obj
+RayTracing/src/PathTracer_ispc.h
+RayTracing/src/PathTracer_ispc_*.h
+
+# xmake
+build/
+.xmake/
+.vscode/compile_commands.json

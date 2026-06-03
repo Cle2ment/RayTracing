@@ -53,10 +53,12 @@ A real-time interactive path tracer built with C++23 on the [Walnut](https://git
 git clone --recursive https://github.com/Cle2ment/RayTracing.git
 cd RayTracing
 
-# Generate VS2026 solution (auto-downloads premake5 + ISPC)
+# One-click setup & build (auto-downloads ISPC)
 scripts\Setup.bat
 
-# Open RayTracing.slnx in Visual Studio, build Release x64
+# Or manual build:
+xmake f -m release && xmake build
+xmake run RayTracing
 ```
 
 ## File Structure
@@ -74,7 +76,7 @@ RayTracing/
 │   ├── CUDARenderer.cuh       # GPU kernels + device functions
 │   ├── CUDARenderer.cu        # CUDA host wrappers (C linkage)
 │   └── CUDARenderer.h         # Host C++ interface + packing helpers
-├── premake5.lua               # Build config (CUDA + ISPC detection)
+├── xmake.lua                   # Build config (CUDA + ISPC detection)
 ├── scripts/Setup.bat          # One-click project generation
 └── .github/workflows/         # CI/CD (CUDA 13.3 + Vulkan)
 ```
@@ -99,7 +101,7 @@ RayTracing/
 
 | Symptom | Cause | Solution |
 |---------|-------|----------|
-| Viewport is black | CUDA architecture mismatch | Check GPU supports `sm_XX` in `premake5.lua` |
+| Viewport is black | CUDA architecture mismatch | Check GPU supports `sm_XX` in `xmake.lua` |
 | `no kernel image is available` | nvcc not targeting your GPU | Add `-gencode=arch=compute_XX,code=sm_XX` |
 | `CUDA_PATH` not set | Environment variable missing | System → Environment Variables → `CUDA_PATH` → CUDA dir |
 | `.cu` files not compiled | `CUDA_PATH` not set at generation time | Restart terminal, `echo %CUDA_PATH%`, re-run `Setup.bat` |
