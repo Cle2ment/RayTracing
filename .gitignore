@@ -41,3 +41,7 @@ nvcc_temp/
 
 *.bin
 *.exe
+
+# ISPC generated files
+RayTracing/src/PathTracer.ispc.obj
+RayTracing/src/PathTracer_ispc.h

@@ -133,6 +133,33 @@ if cuda_found then
         add_cugencodes("compute_89", "sm_89")
         add_cugencodes("compute_120", "sm_120")
 
-        -- NVCC flags
+        -- NVCC flags (matching premake5: --use_fast_math, -lineinfo)
         add_cuflags("--use_fast_math", "-lineinfo")
+end
+
+-- ── ISPC Support (CPU SIMD acceleration) ──
+local ispc_path = "vendor/ispc/bin/ispc.exe"
+local ispc_found = os.isfile(ispc_path)
+
+if ispc_found then
+    target("RayTracing")
+        add_defines("WL_ISPC")
+
+        before_build(function (target)
+            local ispc = path.absolute("vendor/ispc/bin/ispc.exe")
+            local src  = path.absolute("RayTracing/src/PathTracer.ispc")
+            -- Output to source directory (simple, reliable path)
+            local outdir = path.absolute("RayTracing/src")
+            os.runv(ispc, {
+                "--target=avx2",
+                "--arch=x86-64", "--opt=disable-assertions",
+                src,
+                "-o", path.join(outdir, "PathTracer.ispc.obj"),
+                "-h", path.join(outdir, "PathTracer_ispc.h")
+            })
+        end)
+
+        -- Include path for generated header & link object file
+        add_includedirs("RayTracing/src")
+        add_ldflags(path.absolute("RayTracing/src/PathTracer.ispc.obj"), {force = true})
 end
