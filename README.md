@@ -5,9 +5,11 @@
 ![Static Badge](https://img.shields.io/badge/Language-C++23-blue?logo=cplusplus)
 ![Static Badge](https://img.shields.io/badge/GPU-CUDA-green?logo=nvidia)
 ![Static Badge](https://img.shields.io/badge/CPU-ISPC-cyan?logo=intel)
-![Static Badge](https://img.shields.io/badge/Built_by-Premake-blue?logo=lua)
-![Static Badge](https://img.shields.io/badge/License-MIT-green)
+<br>
+![Static Badge](https://img.shields.io/badge/Build-Xmake-brightgreen?logo=xmake)
+![Static Badge](https://img.shields.io/badge/Project-Premake-blue?logo=lua)
 [![Build](https://github.com/Cle2ment/RayTracing/actions/workflows/build.yml/badge.svg)](https://github.com/Cle2ment/RayTracing/actions/workflows/build.yml)
+![Static Badge](https://img.shields.io/badge/License-MIT-green)
 
 ## Overview
 
