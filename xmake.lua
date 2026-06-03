@@ -113,3 +113,26 @@ target("RayTracing")
     -- Config defines
     add_defines("WL_DEBUG", { debug = true })
     add_defines("WL_RELEASE", { release = true })
+
+-- ── CUDA Support ──
+local cuda_path = os.getenv("CUDA_PATH")
+local cuda_found = cuda_path and os.isdir(cuda_path)
+
+if cuda_found then
+    target("RayTracing")
+        add_defines("WL_CUDA")
+        add_files("RayTracing/src/CUDARenderer.cu")
+        add_includedirs(cuda_path .. "/include", "RayTracing/src")
+        add_linkdirs(cuda_path .. "/lib/x64")
+        add_links("cudart")
+
+        -- CUDA architecture targets (matching premake5 sm_75/86/89/120)
+        add_cugencodes("native")
+        add_cugencodes("compute_75", "sm_75")
+        add_cugencodes("compute_86", "sm_86")
+        add_cugencodes("compute_89", "sm_89")
+        add_cugencodes("compute_120", "sm_120")
+
+        -- NVCC flags
+        add_cuflags("--use_fast_math", "-lineinfo")
+end
