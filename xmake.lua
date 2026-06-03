@@ -148,7 +148,6 @@ if ispc_found then
         before_build(function (target)
             local ispc = path.absolute("vendor/ispc/bin/ispc.exe")
             local src  = path.absolute("RayTracing/src/PathTracer.ispc")
-            -- Output to source directory (simple, reliable path)
             local outdir = path.absolute("RayTracing/src")
             os.runv(ispc, {
                 "--target=avx2",
@@ -159,7 +158,6 @@ if ispc_found then
             })
         end)
 
-        -- Include path for generated header & link object file
         add_includedirs("RayTracing/src")
         add_ldflags(path.absolute("RayTracing/src/PathTracer.ispc.obj"), {force = true})
 end
