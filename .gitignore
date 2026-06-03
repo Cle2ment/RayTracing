@@ -45,3 +45,9 @@ nvcc_temp/
 # ISPC generated files
 RayTracing/src/PathTracer.ispc.obj
 RayTracing/src/PathTracer_ispc.h
+RayTracing/src/PathTracer_ispc_*.h
+
+# xmake
+build/
+.xmake/
+.vscode/compile_commands.json
