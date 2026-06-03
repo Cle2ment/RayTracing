@@ -75,7 +75,7 @@ target("Walnut")
     -- Windows
     if is_plat("windows") then
         add_defines("WL_PLATFORM_WINDOWS", "_GLFW_WIN32", "_CRT_SECURE_NO_WARNINGS")
-        add_links("Dwmapi")
+        add_links("Dwmapi", "opengl32", "gdi32", "user32", "kernel32", "shell32")
     end
 
     -- Config defines (matching premake5)
@@ -107,6 +107,7 @@ target("RayTracing")
     if is_plat("windows") then
         add_cxflags("/utf-8", "/EHsc")
         add_defines("WL_PLATFORM_WINDOWS")
+        add_links("opengl32", "gdi32")
     end
 
     -- Config defines
