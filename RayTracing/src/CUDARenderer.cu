@@ -331,7 +331,7 @@ void CUDARenderer_ConvertDenoisedToRGBA(CUDARenderState* state, cudaStream_t str
     int blocks = (state->pixelCount + threads - 1) / threads;
     ConvertToRGBAKernel<<<blocks, threads, 0, stream>>>(
         (const float4*)state->d_DenoiseBuffer,
-        state->d_OutputImage,
+        state->d_InteropBuffer ? (uint32_t*)state->d_InteropBuffer : state->d_OutputImage,
         state->pixelCount
     );
 }

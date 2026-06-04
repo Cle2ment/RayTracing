@@ -17,10 +17,6 @@
 
 #include <memory>
 
-#ifdef WL_OPTIX
-#include "OptiXDenoiser.h"
-#endif
-
 #include <glm/glm.hpp>
 
 class Renderer

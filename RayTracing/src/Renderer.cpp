@@ -460,8 +460,8 @@ glm::vec4 Renderer::PerPixel(uint32_t x, uint32_t y) const
 		] = TraceRay(ray);
 		if (HitDistance < 0.0f)
 		{
-			[[maybe_unused]] auto skyColor = glm::vec3(0.6f, 0.7f, 0.9f);
-			// light += skyColor * contribution;
+			const auto skyColor = glm::vec3(0.53f, 0.81f, 0.92f);
+			light += skyColor * contribution;
 			break;
 		}
 
