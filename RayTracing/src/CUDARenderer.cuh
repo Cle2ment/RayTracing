@@ -244,13 +244,12 @@ __device__ inline float3 PerPixel(
 }
 
 // ──────────────────────────────────────────────
-// Main render kernel (one thread per pixel)
+// Render kernel: one thread per pixel, outputs raw sample color
 // ──────────────────────────────────────────────
 
 __launch_bounds__(256, 2)
 __global__ void RenderKernel(
-    float4* __restrict__ accumulationBuffer,
-    uint32_t* __restrict__ outputImage,
+    float4* __restrict__ sampleBuffer,
     const GPUScene scene,
     const GPUCamera camera,
     GPURenderSettings settings,
@@ -264,21 +263,38 @@ __global__ void RenderKernel(
     if (x >= imageWidth || y >= imageHeight)
         return;
 
-    // Path trace this pixel
     float3 color = PerPixel(x, y, scene, camera, settings, frameIndex);
-
     uint32_t pixelIndex = x + y * imageWidth;
+    sampleBuffer[pixelIndex] = make_float4(color.x, color.y, color.z, 0.0f);
+}
+
+// ──────────────────────────────────────────────
+// Post-process kernel: accumulate, average, clamp, RGBA convert
+// ──────────────────────────────────────────────
+
+__launch_bounds__(256, 4)
+__global__ void PostProcessKernel(
+    const float4* __restrict__ sampleBuffer,
+    float4* __restrict__ accumulationBuffer,
+    uint32_t* __restrict__ outputImage,
+    uint32_t frameIndex,
+    uint32_t pixelCount)
+{
+    uint32_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx >= pixelCount)
+        return;
+
+    float4 sample = sampleBuffer[idx];
 
     // Accumulate
-    float4 newSample = make_float4(color.x, color.y, color.z, 1.0f);
-    float4 accumulated = accumulationBuffer[pixelIndex];
-    accumulated.x += newSample.x;
-    accumulated.y += newSample.y;
-    accumulated.z += newSample.z;
-    accumulated.w += newSample.w;
-    accumulationBuffer[pixelIndex] = accumulated;
+    float4 accumulated = accumulationBuffer[idx];
+    accumulated.x += sample.x;
+    accumulated.y += sample.y;
+    accumulated.z += sample.z;
+    accumulated.w += 1.0f;  // sample count
+    accumulationBuffer[idx] = accumulated;
 
-    // Average and clamp for output
+    // Average
     float invFrames = 1.0f / static_cast<float>(frameIndex);
     float4 averaged = make_float4(
         accumulated.x * invFrames,
@@ -291,15 +307,14 @@ __global__ void RenderKernel(
     averaged.x = fminf(fmaxf(averaged.x, 0.0f), 1.0f);
     averaged.y = fminf(fmaxf(averaged.y, 0.0f), 1.0f);
     averaged.z = fminf(fmaxf(averaged.z, 0.0f), 1.0f);
-    averaged.w = fminf(fmaxf(averaged.w, 0.0f), 1.0f);
 
     // Convert to RGBA8
     uint8_t r = static_cast<uint8_t>(averaged.x * 255.0f);
     uint8_t g = static_cast<uint8_t>(averaged.y * 255.0f);
     uint8_t b = static_cast<uint8_t>(averaged.z * 255.0f);
-    uint8_t a = static_cast<uint8_t>(averaged.w * 255.0f);
+    uint8_t a = 255;
 
-    outputImage[pixelIndex] = (a << 24) | (b << 16) | (g << 8) | r;
+    outputImage[idx] = (a << 24) | (b << 16) | (g << 8) | r;
 }
 
 // ──────────────────────────────────────────────

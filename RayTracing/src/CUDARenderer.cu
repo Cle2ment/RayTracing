@@ -14,6 +14,7 @@ extern "C"
 
 struct CUDARenderState
 {
+    float4*    d_SampleBuffer;        // Device per-pixel sample buffer (raw path trace output)
     float4*    d_AccumulationBuffer;  // Device accumulation buffer
     uint32_t*  d_OutputImage;         // Device output RGBA buffer
 
@@ -40,6 +41,7 @@ CUDARenderState* CUDARenderer_Create()
     CUDARenderState* state = new CUDARenderState();
     state->initialized = false;
 
+    state->d_SampleBuffer = nullptr;
     state->d_AccumulationBuffer = nullptr;
     state->d_OutputImage = nullptr;
     state->d_Spheres = nullptr;
@@ -60,6 +62,7 @@ void CUDARenderer_Destroy(CUDARenderState const* state)
 {
     if (!state) return;
 
+    if (state->d_SampleBuffer)       cudaFree(state->d_SampleBuffer);
     if (state->d_AccumulationBuffer) cudaFree(state->d_AccumulationBuffer);
     if (state->d_OutputImage)        cudaFree(state->d_OutputImage);
     if (state->d_Spheres)            cudaFree(state->d_Spheres);
@@ -112,11 +115,13 @@ void CUDARenderer_OnResize(CUDARenderState* state, uint32_t width, uint32_t heig
     state->pixelCount = width * height;
 
     // Free old buffers
+    if (state->d_SampleBuffer)       cudaFree(state->d_SampleBuffer);
     if (state->d_AccumulationBuffer) cudaFree(state->d_AccumulationBuffer);
     if (state->d_OutputImage)        cudaFree(state->d_OutputImage);
     if (state->d_RayDirections)      cudaFree(state->d_RayDirections);
 
     // Allocate new buffers
+    cudaMalloc(&state->d_SampleBuffer,       state->pixelCount * sizeof(float4));
     cudaMalloc(&state->d_AccumulationBuffer, state->pixelCount * sizeof(float4));
     cudaMalloc(&state->d_OutputImage, state->pixelCount * sizeof(uint32_t));
     cudaMalloc(&state->d_RayDirections, state->pixelCount * sizeof(float3));
@@ -225,7 +230,7 @@ void CUDARenderer_Render(
         cudaDeviceSynchronize();
     }
 
-    // Launch render kernel (16x16 thread blocks for good occupancy)
+    // ── Pass 1: Path trace raw samples ──
     dim3 blockDim(16, 16);
     dim3 gridDim(
         (state->imageWidth + blockDim.x - 1) / blockDim.x,
@@ -233,14 +238,24 @@ void CUDARenderer_Render(
     );
 
     RenderKernel<<<gridDim, blockDim>>>(
-        state->d_AccumulationBuffer,
-        state->d_OutputImage,
+        state->d_SampleBuffer,
         state->gpuScene,
         state->gpuCamera,
         state->gpuSettings,
         frameIndex,
         state->imageWidth,
         state->imageHeight
+    );
+
+    // ── Pass 2: Accumulate, average, clamp, RGBA convert ──
+    int ppThreads = 256;
+    int ppBlocks = (state->pixelCount + ppThreads - 1) / ppThreads;
+    PostProcessKernel<<<ppBlocks, ppThreads>>>(
+        state->d_SampleBuffer,
+        state->d_AccumulationBuffer,
+        state->d_OutputImage,
+        frameIndex,
+        state->pixelCount
     );
 
     // Synchronize to catch kernel errors
