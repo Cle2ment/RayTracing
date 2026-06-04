@@ -54,6 +54,51 @@ namespace Utils
 			RandomFloat(seed) * 2.0f - 1.0f
 		));
 	}
+
+	// ── GGX Microfacet ──
+	static glm::vec3 FresnelSchlick(float cosTheta, const glm::vec3& F0)
+	{
+		float t = glm::max(1.0f - cosTheta, 0.0f);
+		float t5 = t * t * t * t * t;
+		return F0 + (glm::vec3(1.0f) - F0) * t5;
+	}
+
+	static float GGX_D(float NdotH, float a)
+	{
+		float a2 = a * a;
+		float d = NdotH * NdotH * (a2 - 1.0f) + 1.0f;
+		return a2 / (glm::pi<float>() * d * d);
+	}
+
+	static float GGX_G1(float NdotV, float a)
+	{
+		float a2 = a * a;
+		float denom = NdotV + glm::sqrt(NdotV * NdotV * (1.0f - a2) + a2);
+		return 2.0f * NdotV / glm::max(denom, 0.0001f);
+	}
+
+	static float GGX_G(float NdotL, float NdotV, float a)
+	{
+		return GGX_G1(NdotL, a) * GGX_G1(NdotV, a);
+	}
+
+	static glm::vec3 SampleGGX_VNDF(const glm::vec3& V, float a, float r1, float r2)
+	{
+		glm::vec3 Vh = glm::normalize(glm::vec3(a * V.x, a * V.y, V.z));
+		glm::vec3 up(0.0f, 0.0f, 1.0f);
+		glm::vec3 T1 = (Vh.z < 0.9999f) ? glm::normalize(glm::cross(up, Vh)) : glm::vec3(1.0f, 0.0f, 0.0f);
+		glm::vec3 T2 = glm::cross(Vh, T1);
+
+		float r = glm::sqrt(r1);
+		float phi = 2.0f * glm::pi<float>() * r2;
+		float t1 = r * glm::cos(phi);
+		float t2 = r * glm::sin(phi);
+		float s = 0.5f * (1.0f + Vh.z);
+		t2 = (1.0f - s) * glm::sqrt(glm::max(1.0f - t1 * t1, 0.0f)) + s * t2;
+
+		glm::vec3 Nh = t1 * T1 + t2 * T2 + glm::sqrt(glm::max(1.0f - t1*t1 - t2*t2, 0.0f)) * Vh;
+		return glm::normalize(glm::vec3(a * Nh.x, a * Nh.y, glm::max(0.0f, Nh.z)));
+	}
 }
 
 #endif // !WL_CUDA
@@ -361,7 +406,6 @@ glm::vec4 Renderer::PerPixel(uint32_t x, uint32_t y) const
 		// This order matches the GPU path (CUDARenderer.cuh:193-200) and the
 		// path tracing integral: Le * ∏(previous BSDFs)
 		light += contribution * material.GetEmission();
-		contribution *= material.Albedo;
 
 		// Russian roulette: probabilistically terminate low-contribution paths (after 3 guaranteed bounces)
 		if (i > 2)
@@ -373,10 +417,35 @@ glm::vec4 Renderer::PerPixel(uint32_t x, uint32_t y) const
 		}
 
 		ray.Origin = WorldPosition + WorldNormal * 0.0001f;
-		if (m_Settings.SlowRandom)
-			ray.Direction = glm::normalize(WorldNormal + Walnut::Random::InUnitSphere());
-		else
-			ray.Direction = glm::normalize(WorldNormal + Utils::InUnitSphere(seed));
+
+		// ── GGX Microfacet BRDF ──
+		const glm::vec3 w_o = -ray.Direction;
+		const glm::vec3 F0 = glm::mix(glm::vec3(0.04f), material.Albedo, material.Metallic);
+		const float rough = glm::max(material.Roughness, 0.001f);
+		const float a = rough * rough;
+
+		const float r1 = Utils::RandomFloat(seed), r2 = Utils::RandomFloat(seed);
+		const glm::vec3 H = Utils::SampleGGX_VNDF(w_o, a, r1, r2);
+		const float NdotH = glm::max(glm::dot(WorldNormal, H), 0.001f);
+		const glm::vec3 wi = glm::reflect(-w_o, H);
+		const float NdotL = glm::max(glm::dot(WorldNormal, wi), 0.001f);
+		const float NdotV = glm::max(glm::dot(WorldNormal, w_o), 0.001f);
+		const float WoDotH = glm::abs(glm::dot(w_o, H));
+
+		const float  D = Utils::GGX_D(NdotH, a);
+		const float  G = Utils::GGX_G(NdotL, NdotV, a);
+		const glm::vec3 F = Utils::FresnelSchlick(WoDotH, F0);
+
+		const glm::vec3 specBRDF = D * G * F / (4.0f * NdotL * NdotV + 0.001f);
+		const glm::vec3 kD = (glm::vec3(1.0f) - F) * (1.0f - material.Metallic);
+		const glm::vec3 diffBRDF = kD * material.Albedo / glm::pi<float>();
+
+		const float pdf = glm::max(D * NdotH / (4.0f * WoDotH + 0.001f), 0.001f);
+
+		const glm::vec3 bsdf = (specBRDF + diffBRDF) * NdotL;
+		contribution *= bsdf / pdf;
+
+		ray.Direction = glm::normalize(wi);
 	}
 	return { light, 1.0f };
 }

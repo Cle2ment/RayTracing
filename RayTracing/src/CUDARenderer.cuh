@@ -51,6 +51,80 @@ __device__ inline void BuildONB(const float3& n, float3& u, float3& v, float3& w
 }
 
 // ──────────────────────────────────────────────
+// GGX Microfacet BRDF
+// ──────────────────────────────────────────────
+
+__device__ inline float3 FresnelSchlick(float cosTheta, float3 F0)
+{
+    float t = fmaxf(1.0f - cosTheta, 0.0f);
+    float t5 = t * t * t * t * t;
+    return make_float3(
+        F0.x + (1.0f - F0.x) * t5,
+        F0.y + (1.0f - F0.y) * t5,
+        F0.z + (1.0f - F0.z) * t5
+    );
+}
+
+__device__ inline float GGX_D(float NdotH, float a)
+{
+    float a2 = a * a;
+    float d = NdotH * NdotH * (a2 - 1.0f) + 1.0f;
+    return a2 / (3.14159265358979323846f * d * d);
+}
+
+__device__ inline float GGX_G1(float NdotV, float a)
+{
+    float a2 = a * a;
+    float denom = NdotV + sqrtf(NdotV * NdotV * (1.0f - a2) + a2);
+    return 2.0f * NdotV / fmaxf(denom, 0.0001f);
+}
+
+__device__ inline float GGX_G(float NdotL, float NdotV, float a)
+{
+    return GGX_G1(NdotL, a) * GGX_G1(NdotV, a);
+}
+
+// VNDF sampling: GGX visible normal distribution
+__device__ inline float3 SampleGGX_VNDF(float3 V, float a, float r1, float r2)
+{
+    float3 Vh = make_float3(a * V.x, a * V.y, V.z);
+    float vhLen = sqrtf(Vh.x*Vh.x + Vh.y*Vh.y + Vh.z*Vh.z);
+    Vh = make_float3(Vh.x/vhLen, Vh.y/vhLen, Vh.z/vhLen);
+
+    float3 up = make_float3(0.0f, 0.0f, 1.0f);
+    float3 T1;
+    if (Vh.z < 0.9999f) {
+        T1 = make_float3(-Vh.y, Vh.x, 0.0f);
+        float t1Len = sqrtf(T1.x*T1.x + T1.y*T1.y);
+        T1 = make_float3(T1.x/t1Len, T1.y/t1Len, 0.0f);
+    } else {
+        T1 = make_float3(1.0f, 0.0f, 0.0f);
+    }
+    float3 T2 = make_float3(
+        T1.y*Vh.z - T1.z*Vh.y,
+        T1.z*Vh.x - T1.x*Vh.z,
+        T1.x*Vh.y - T1.y*Vh.x
+    );
+
+    float r = sqrtf(r1);
+    float phi = 2.0f * 3.14159265358979323846f * r2;
+    float t1 = r * cosf(phi);
+    float t2 = r * sinf(phi);
+    float s = 0.5f * (1.0f + Vh.z);
+    t2 = (1.0f - s) * sqrtf(fmaxf(1.0f - t1 * t1, 0.0f)) + s * t2;
+
+    float3 Nh = make_float3(
+        t1 * T1.x + t2 * T2.x + sqrtf(fmaxf(1.0f - t1 * t1 - t2 * t2, 0.0f)) * Vh.x,
+        t1 * T1.y + t2 * T2.y + sqrtf(fmaxf(1.0f - t1 * t1 - t2 * t2, 0.0f)) * Vh.y,
+        t1 * T1.z + t2 * T2.z + sqrtf(fmaxf(1.0f - t1 * t1 - t2 * t2, 0.0f)) * Vh.z
+    );
+
+    float3 unstretched = make_float3(a * Nh.x, a * Nh.y, fmaxf(0.0f, Nh.z));
+    float len = sqrtf(unstretched.x*unstretched.x + unstretched.y*unstretched.y + unstretched.z*unstretched.z);
+    return make_float3(unstretched.x/len, unstretched.y/len, unstretched.z/len);
+}
+
+// ──────────────────────────────────────────────
 // Device-side ray-sphere intersection
 // ──────────────────────────────────────────────
 
@@ -204,11 +278,6 @@ __device__ inline float3 PerPixel(
         light.y += contribution.y * emission.y;
         light.z += contribution.z * emission.z;
 
-        // Attenuate by albedo
-        contribution.x *= material.Albedo.x;
-        contribution.y *= material.Albedo.y;
-        contribution.z *= material.Albedo.z;
-
         // Russian roulette: terminate low-contribution paths after 3 bounces
         if (i > 2)
         {
@@ -228,16 +297,70 @@ __device__ inline float3 PerPixel(
             payload.WorldPosition.z + payload.WorldNormal.z * 0.0001f
         );
 
-        // Cosine-weighted diffuse BRDF: sample direction in hemisphere via ONB
-        float3 u, v, w;
-        BuildONB(payload.WorldNormal, u, v, w);
-        float3 localDir = RandomCosineWeightedDirection(seed);
+        // ── GGX Microfacet BRDF ──
+        float  rough = fmaxf(material.Roughness, 0.001f);
+        float  a = rough * rough;
+        float  a2 = a * a;
 
-        ray.Direction = make_float3(
-            u.x * localDir.x + v.x * localDir.y + w.x * localDir.z,
-            u.y * localDir.x + v.y * localDir.y + w.y * localDir.z,
-            u.z * localDir.x + v.z * localDir.y + w.z * localDir.z
+        float3 w_o = make_float3(-ray.Direction.x, -ray.Direction.y, -ray.Direction.z);
+        float3 N   = payload.WorldNormal;
+        float  NdotV = N.x*w_o.x + N.y*w_o.y + N.z*w_o.z;
+        if (NdotV < 0.001f) NdotV = 0.001f;
+
+        float3 F0 = make_float3(
+            0.04f + (material.Albedo.x - 0.04f) * material.Metallic,
+            0.04f + (material.Albedo.y - 0.04f) * material.Metallic,
+            0.04f + (material.Albedo.z - 0.04f) * material.Metallic
         );
+
+        // ── Sample H from GGX VNDF (visible normals — guarantees WoDotH > 0) ──
+        float3 u_t, v_t, w_t;
+        BuildONB(N, u_t, v_t, w_t);
+        float3 localWo = make_float3(
+            u_t.x*w_o.x + u_t.y*w_o.y + u_t.z*w_o.z,
+            v_t.x*w_o.x + v_t.y*w_o.y + v_t.z*w_o.z,
+            w_t.x*w_o.x + w_t.y*w_o.y + w_t.z*w_o.z
+        );
+        float3 localH = SampleGGX_VNDF(localWo, a, RandomFloat(seed), RandomFloat(seed));
+        float NdotH = fmaxf(localH.z, 0.001f);
+        float WoDotH = localWo.x*localH.x + localWo.y*localH.y + localWo.z*localH.z;
+
+        // Reflect in local frame: wi = 2*(wo·H)*H - wo
+        float3 localWi = make_float3(
+            2.0f * WoDotH * localH.x - localWo.x,
+            2.0f * WoDotH * localH.y - localWo.y,
+            2.0f * WoDotH * localH.z - localWo.z
+        );
+        float NdotL = fmaxf(localWi.z, 0.001f);
+
+        // Transform wi back to world
+        float3 wi = make_float3(
+            u_t.x*localWi.x + v_t.x*localWi.y + w_t.x*localWi.z,
+            u_t.y*localWi.x + v_t.y*localWi.y + w_t.y*localWi.z,
+            u_t.z*localWi.x + v_t.z*localWi.y + w_t.z*localWi.z
+        );
+
+        // ── Evaluate GGX BRDF ──
+        float  D = a2 / (3.14159265358979323846f * (NdotH*NdotH*(a2-1.0f)+1.0f) * (NdotH*NdotH*(a2-1.0f)+1.0f));
+        float  G1_v = 2.0f*NdotV / (NdotV + sqrtf(NdotV*NdotV*(1.0f-a2)+a2));
+        float  G1_l = 2.0f*NdotL / (NdotL + sqrtf(NdotL*NdotL*(1.0f-a2)+a2));
+        float  G = G1_v * G1_l;
+        float3 F = FresnelSchlick(WoDotH, F0);
+
+        float3 spec = make_float3(D*G*F.x/(4.0f*NdotL*NdotV), D*G*F.y/(4.0f*NdotL*NdotV), D*G*F.z/(4.0f*NdotL*NdotV));
+        float3 kD = make_float3((1.0f-F.x)*(1.0f-material.Metallic), (1.0f-F.y)*(1.0f-material.Metallic), (1.0f-F.z)*(1.0f-material.Metallic));
+        float3 diff = make_float3(kD.x*material.Albedo.x/3.14159265358979323846f, kD.y*material.Albedo.y/3.14159265358979323846f, kD.z*material.Albedo.z/3.14159265358979323846f);
+
+        // PDF for NDF-sampled H: pdf(wi) = D*NdotH / (4*WoDotH)
+        float pdf = fmaxf(D * NdotH / (4.0f * WoDotH), 0.001f);
+
+        // Combined BSDF * cosθ / pdf
+        contribution.x *= (spec.x + diff.x) * NdotL / pdf;
+        contribution.y *= (spec.y + diff.y) * NdotL / pdf;
+        contribution.z *= (spec.z + diff.z) * NdotL / pdf;
+
+        float wiLen = sqrtf(wi.x*wi.x + wi.y*wi.y + wi.z*wi.z);
+        ray.Direction = make_float3(wi.x/wiLen, wi.y/wiLen, wi.z/wiLen);
     }
 
     return light;
