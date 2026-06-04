@@ -323,7 +323,7 @@ __device__ inline float3 PerPixel(
             v.x * w_o.x + v.y * w_o.y + v.z * w_o.z,
             w_onb.x * w_o.x + w_onb.y * w_o.y + w_onb.z * w_o.z
         );
-        float NdotV = fmaxf(fabsf(localWo.z), 0.001f);
+        float NdotV = fmaxf(localWo.z, 0.001f);
 
         float r1 = RandomFloat(seed), r2 = RandomFloat(seed);
         float3 localH = SampleGGX_VNDF(localWo, a, r1, r2);
