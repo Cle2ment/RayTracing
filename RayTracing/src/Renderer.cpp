@@ -440,10 +440,7 @@ glm::vec4 Renderer::PerPixel(uint32_t x, uint32_t y) const
 		const glm::vec3 kD = (glm::vec3(1.0f) - F) * (1.0f - material.Metallic);
 		const glm::vec3 diffBRDF = kD * material.Albedo / glm::pi<float>();
 
-		const float specWeight = glm::clamp(glm::max(F.r, glm::max(F.g, F.b)), 0.05f, 0.95f);
-		const float specPdf = D * NdotH / (4.0f * WoDotH + 0.001f);
-		const float diffPdf = NdotL / glm::pi<float>();
-		const float pdf = glm::max(specWeight * specPdf + (1.0f - specWeight) * diffPdf, 0.001f);
+		const float pdf = glm::max(D * NdotH / (4.0f * WoDotH + 0.001f), 0.001f);
 
 		const glm::vec3 bsdf = (specBRDF + diffBRDF) * NdotL;
 		contribution *= bsdf / pdf;

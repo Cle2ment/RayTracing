@@ -363,12 +363,8 @@ __device__ inline float3 PerPixel(
             kD.z * material.Albedo.z / 3.14159265358979323846f
         );
 
-        float specWeight = fmaxf(F.x, fmaxf(F.y, F.z));
-        specWeight = fminf(fmaxf(specWeight, 0.05f), 0.95f);
-
-        float specPdf = D * NdotH / (4.0f * WoDotHAbs + 0.001f);
-        float diffPdf = NdotL / 3.14159265358979323846f;
-        float pdf = fmaxf(specWeight * specPdf + (1.0f - specWeight) * diffPdf, 0.001f);
+        // PDF for VNDF-sampled direction (only specular — unbiased for both spec+diffuse)
+        float pdf = fmaxf(D * NdotH / (4.0f * WoDotHAbs + 0.001f), 0.001f);
 
         float3 bsdf = make_float3(
             (specBRDF.x + diffBRDF.x) * NdotL,

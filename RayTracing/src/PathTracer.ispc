@@ -334,14 +334,7 @@ export void ISPCRenderPixels(
             varying float diffG = kdG * alG / 3.14159265358979323846f;
             varying float diffB = kdB * alB / 3.14159265358979323846f;
 
-            varying float specWeight = F[0];
-            if (F[1] > specWeight) specWeight = F[1];
-            if (F[2] > specWeight) specWeight = F[2];
-            specWeight = min(max(specWeight, 0.05f), 0.95f);
-
-            varying float specPdf = D * NdotH / (4.0f * WoDotH + 0.001f);
-            varying float diffPdf = NdotL / 3.14159265358979323846f;
-            varying float pdf = max(specWeight * specPdf + (1.0f - specWeight) * diffPdf, 0.001f);
+            varying float pdf = max(D * NdotH / (4.0f * WoDotH + 0.001f), 0.001f);
 
             varying float bsdfR = (specR + diffR) * NdotL;
             varying float bsdfG = (specG + diffG) * NdotL;
