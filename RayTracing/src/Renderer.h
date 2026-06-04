@@ -11,8 +11,8 @@
 #endif
 
 #ifdef WL_CUDA
+#include "VkCUDAInterop.h"  // Must precede CUDARenderer.h — defines CUDART_VERSION so float3 guard works
 #include "CUDARenderer.h"
-#include "VkCUDAInterop.h"
 #endif
 
 #include <memory>
