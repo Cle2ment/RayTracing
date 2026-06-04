@@ -406,7 +406,6 @@ glm::vec4 Renderer::PerPixel(uint32_t x, uint32_t y) const
 		// This order matches the GPU path (CUDARenderer.cuh:193-200) and the
 		// path tracing integral: Le * ∏(previous BSDFs)
 		light += contribution * material.GetEmission();
-		contribution *= material.Albedo;
 
 		// Russian roulette: probabilistically terminate low-contribution paths (after 3 guaranteed bounces)
 		if (i > 2)
@@ -431,17 +430,18 @@ glm::vec4 Renderer::PerPixel(uint32_t x, uint32_t y) const
 		const glm::vec3 wi = glm::reflect(-w_o, H);
 		const float NdotL = glm::max(glm::dot(WorldNormal, wi), 0.001f);
 		const float NdotV = glm::max(glm::dot(WorldNormal, w_o), 0.001f);
+		const float WoDotH = glm::abs(glm::dot(w_o, H));
 
 		const float  D = Utils::GGX_D(NdotH, a);
 		const float  G = Utils::GGX_G(NdotL, NdotV, a);
-		const glm::vec3 F = Utils::FresnelSchlick(NdotV, F0);
+		const glm::vec3 F = Utils::FresnelSchlick(WoDotH, F0);
 
 		const glm::vec3 specBRDF = D * G * F / (4.0f * NdotL * NdotV + 0.001f);
 		const glm::vec3 kD = (glm::vec3(1.0f) - F) * (1.0f - material.Metallic);
 		const glm::vec3 diffBRDF = kD * material.Albedo / glm::pi<float>();
 
 		const float specWeight = glm::clamp(glm::max(F.r, glm::max(F.g, F.b)), 0.05f, 0.95f);
-		const float specPdf = D * NdotH / (4.0f * NdotV + 0.001f);
+		const float specPdf = D * NdotH / (4.0f * WoDotH + 0.001f);
 		const float diffPdf = NdotL / glm::pi<float>();
 		const float pdf = glm::max(specWeight * specPdf + (1.0f - specWeight) * diffPdf, 0.001f);
 

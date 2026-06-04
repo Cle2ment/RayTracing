@@ -278,11 +278,6 @@ __device__ inline float3 PerPixel(
         light.y += contribution.y * emission.y;
         light.z += contribution.z * emission.z;
 
-        // Attenuate by albedo
-        contribution.x *= material.Albedo.x;
-        contribution.y *= material.Albedo.y;
-        contribution.z *= material.Albedo.z;
-
         // Russian roulette: terminate low-contribution paths after 3 bounces
         if (i > 2)
         {
@@ -336,6 +331,9 @@ __device__ inline float3 PerPixel(
         );
         float NdotL = fmaxf(localWi.z, 0.001f);
 
+        // dot(wo, H) — correct Fresnel angle and PDF denominator
+        float WoDotH = fabsf(localWo.x*localH.x + localWo.y*localH.y + localWo.z*localH.z);
+
         float3 wi = make_float3(
             u.x * localWi.x + v.x * localWi.y + w_onb.x * localWi.z,
             u.y * localWi.x + v.y * localWi.y + w_onb.y * localWi.z,
@@ -344,7 +342,7 @@ __device__ inline float3 PerPixel(
 
         float  D = GGX_D(NdotH, a);
         float  G = GGX_G(NdotL, NdotV, a);
-        float3 F = FresnelSchlick(NdotV, F0);
+        float3 F = FresnelSchlick(WoDotH, F0);
 
         float3 specBRDF = make_float3(
             D * G * F.x / (4.0f * NdotL * NdotV + 0.001f),
@@ -366,7 +364,7 @@ __device__ inline float3 PerPixel(
         float specWeight = fmaxf(F.x, fmaxf(F.y, F.z));
         specWeight = fminf(fmaxf(specWeight, 0.05f), 0.95f);
 
-        float specPdf = D * NdotH / (4.0f * NdotV + 0.001f);
+        float specPdf = D * NdotH / (4.0f * WoDotH + 0.001f);
         float diffPdf = NdotL / 3.14159265358979323846f;
         float pdf = fmaxf(specWeight * specPdf + (1.0f - specWeight) * diffPdf, 0.001f);
 

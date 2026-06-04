@@ -251,15 +251,10 @@ export void ISPCRenderPixels(
             varying float alG = matAlbedoG[hmi];
             varying float alB = matAlbedoB[hmi];
 
-            // ── Accumulate emission (BEFORE albedo attenuation) ──
+            // ── Accumulate emission ──
             lightR += contribR * emR;
             lightG += contribG * emG;
             lightB += contribB * emB;
-
-            // ── Attenuate contribution by albedo ──
-            contribR *= alR;
-            contribG *= alG;
-            contribB *= alB;
 
             // ── Russian roulette (after 3 guaranteed bounces) ──
             if (bounce > 2) {
@@ -309,7 +304,6 @@ export void ISPCRenderPixels(
             varying float wiX = 2.0f * NdotH * H[0] - woX;
             varying float wiY = 2.0f * NdotH * H[1] - woY;
             varying float wiZ = 2.0f * NdotH * H[2] - woZ;
-            // Normalize wi
             {
                 varying float wiLenSq = wiX*wiX + wiY*wiY + wiZ*wiZ;
                 if (wiLenSq > 0.0f) {
@@ -319,11 +313,14 @@ export void ISPCRenderPixels(
             }
             float NdotL = max(dot3(normX, normY, normZ, wiX, wiY, wiZ), 0.001f);
 
-            // BRDF evaluation
+            // dot(wo, H) — correct Fresnel angle
+            varying float WoDotH = woX*H[0] + woY*H[1] + woZ*H[2];
+            if (WoDotH < 0.0f) WoDotH = -WoDotH;
+
             float D = GGX_D(NdotH, a);
             float G = GGX_G(NdotL, NdotV, a);
             varying float F[3];
-            FresnelSchlick3(NdotV, F0, F);
+            FresnelSchlick3(WoDotH, F0, F);
 
             varying float specR = D * G * F[0] / (4.0f * NdotL * NdotV + 0.001f);
             varying float specG = D * G * F[1] / (4.0f * NdotL * NdotV + 0.001f);
@@ -341,7 +338,7 @@ export void ISPCRenderPixels(
             if (F[2] > specWeight) specWeight = F[2];
             specWeight = min(max(specWeight, 0.05f), 0.95f);
 
-            varying float specPdf = D * NdotH / (4.0f * NdotV + 0.001f);
+            varying float specPdf = D * NdotH / (4.0f * WoDotH + 0.001f);
             varying float diffPdf = NdotL / 3.14159265358979323846f;
             varying float pdf = max(specWeight * specPdf + (1.0f - specWeight) * diffPdf, 0.001f);
 
