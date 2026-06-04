@@ -52,3 +52,6 @@ RayTracing/src/PathTracer_ispc_*.h
 # ─── Project-specific ───
 copilot*.md
 docs/language-refactoring-analysis.md
+
+# ---- Git Worktrees ----
+.worktrees/

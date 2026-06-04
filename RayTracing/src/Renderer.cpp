@@ -129,7 +129,7 @@ void Renderer::OnResize(uint32_t width, uint32_t height)
 		if (CUDARenderer_Init(m_CUDAState))
 		{
 			cudaInitialized = true;
-			CUDARenderer_SetSettings(m_CUDAState, 5, static_cast<int>(m_Settings.Accumulate));
+			CUDARenderer_SetSettings(m_CUDAState, 5);
 		}
 	}
 
@@ -139,6 +139,7 @@ void Renderer::OnResize(uint32_t width, uint32_t height)
 	}
 #endif
 
+	m_RayDirsDirty = true;  // Force re-upload on resize
 	m_FrameIndex = 1;
 }
 
@@ -503,9 +504,12 @@ void Renderer::RenderGPU(const Scene& scene, const Camera& camera)
 	const uint32_t height = m_FinalImage->GetHeight();
 	if (width == 0 || height == 0) return;
 
-	// Upload scene data every frame — ImGui modifies Scene directly through references,
-	// so the Renderer cannot reliably detect changes via a dirty flag
-	UploadSceneToGPU(scene);
+	// Upload scene data only when changed (tracked by scene version)
+	if (scene.Version != m_LastSceneVersion)
+	{
+		UploadSceneToGPU(scene);
+		m_LastSceneVersion = scene.Version;
+	}
 
 	// Upload camera position
 	const glm::vec3& camPos = camera.GetPosition();
@@ -513,26 +517,29 @@ void Renderer::RenderGPU(const Scene& scene, const Camera& camera)
 		m_CUDAState, camPos.x, camPos.y, camPos.z
 	);
 
-	// Upload ray directions
-	const auto& rayDirs = camera.GetRayDirections();
-	m_GPURayDirs.resize(rayDirs.size());
-	for (size_t i = 0; i < rayDirs.size(); i++)
+	// Upload ray directions — only when camera moved or viewport resized
+	if (m_RayDirsDirty)
 	{
-		m_GPURayDirs[i].x = rayDirs[i].x;
-		m_GPURayDirs[i].y = rayDirs[i].y;
-		m_GPURayDirs[i].z = rayDirs[i].z;
+		const auto& rayDirs = camera.GetRayDirections();
+		m_GPURayDirs.resize(rayDirs.size());
+		for (size_t i = 0; i < rayDirs.size(); i++)
+		{
+			m_GPURayDirs[i].x = rayDirs[i].x;
+			m_GPURayDirs[i].y = rayDirs[i].y;
+			m_GPURayDirs[i].z = rayDirs[i].z;
+		}
+		CUDARenderer_UploadRayDirections(
+			m_CUDAState,
+			m_GPURayDirs.data(),
+			static_cast<uint32_t>(m_GPURayDirs.size())
+		);
+		m_RayDirsDirty = false;
 	}
-	CUDARenderer_UploadRayDirections(
-		m_CUDAState,
-		m_GPURayDirs.data(),
-		static_cast<uint32_t>(m_GPURayDirs.size())
-	);
 
 	// Update settings
 	CUDARenderer_SetSettings(
 		m_CUDAState,
-		5, // MaxBounces
-		static_cast<int>(m_Settings.Accumulate)
+		5  // MaxBounces
 	);
 
 	// Launch CUDA render kernel

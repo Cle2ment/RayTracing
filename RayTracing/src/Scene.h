@@ -30,4 +30,6 @@ struct Scene
 {
 	std::vector<Sphere> Spheres;
 	std::vector<Material> Materials;
+
+	uint32_t Version = 0;  // Incremented when any scene property changes; Renderer uses this to skip redundant GPU uploads
 };

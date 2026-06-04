@@ -19,25 +19,35 @@ __device__ inline float RandomFloat(uint32_t& seed)
     return __uint2float_ru(seed) * 2.3283064365386963e-10f; // 2^-32
 }
 
-__device__ inline float RandomFloatRange(uint32_t& seed, float minVal, float maxVal)
+// Cosine-weighted hemisphere sampling (tangent space, z-up).
+// Eliminates rejection sampling → no warp divergence.
+// Returns direction in hemisphere around local Z axis (unit length).
+__device__ inline float3 RandomCosineWeightedDirection(uint32_t& seed)
 {
-    return minVal + (maxVal - minVal) * RandomFloat(seed);
+	float r1 = RandomFloat(seed);
+	float r2 = RandomFloat(seed);
+
+	float phi = 2.0f * 3.14159265358979323846f * r1;
+	float cosTheta = sqrtf(r2);           // cosine-weighted
+	float sinTheta = sqrtf(1.0f - r2);
+
+	return make_float3(
+		cosf(phi) * sinTheta,
+		sinf(phi) * sinTheta,
+		cosTheta
+	);
 }
 
-__device__ inline float3 RandomInUnitSphere(uint32_t& seed)
+// Build orthonormal basis (ONB) from a normal vector (Duff et al. 2017).
+// Output: tangent (u), bitangent (v), normal (w == n).
+__device__ inline void BuildONB(const float3& n, float3& u, float3& v, float3& w)
 {
-    float3 v;
-    float lenSq;
-    do
-    {
-        v.x = RandomFloatRange(seed, -1.0f, 1.0f);
-        v.y = RandomFloatRange(seed, -1.0f, 1.0f);
-        v.z = RandomFloatRange(seed, -1.0f, 1.0f);
-        lenSq = v.x * v.x + v.y * v.y + v.z * v.z;
-    } while (lenSq > 1.0f || lenSq < 1e-6f);
-
-    float invLen = rsqrtf(lenSq);
-    return make_float3(v.x * invLen, v.y * invLen, v.z * invLen);
+	w = n;
+	float sign = (w.z > 0.0f) ? 1.0f : -1.0f;
+	float a = -1.0f / (sign + w.z);
+	float b = w.x * w.y * a;
+	u = make_float3(1.0f + sign * w.x * w.x * a, sign * b, -sign * w.x);
+	v = make_float3(b, sign + w.y * w.y * a, -w.y);
 }
 
 // ──────────────────────────────────────────────
@@ -218,39 +228,28 @@ __device__ inline float3 PerPixel(
             payload.WorldPosition.z + payload.WorldNormal.z * 0.0001f
         );
 
-        // Diffuse BRDF: sample random direction in hemisphere
-        float3 randomDir = RandomInUnitSphere(seed);
-        ray.Direction = make_float3(
-            payload.WorldNormal.x + randomDir.x,
-            payload.WorldNormal.y + randomDir.y,
-            payload.WorldNormal.z + randomDir.z
-        );
+        // Cosine-weighted diffuse BRDF: sample direction in hemisphere via ONB
+        float3 u, v, w;
+        BuildONB(payload.WorldNormal, u, v, w);
+        float3 localDir = RandomCosineWeightedDirection(seed);
 
-        // Normalize direction
-        float dirLen = sqrtf(
-            ray.Direction.x * ray.Direction.x +
-            ray.Direction.y * ray.Direction.y +
-            ray.Direction.z * ray.Direction.z
+        ray.Direction = make_float3(
+            u.x * localDir.x + v.x * localDir.y + w.x * localDir.z,
+            u.y * localDir.x + v.y * localDir.y + w.y * localDir.z,
+            u.z * localDir.x + v.z * localDir.y + w.z * localDir.z
         );
-        if (dirLen > 0.0f)
-        {
-            float invLen = 1.0f / dirLen;
-            ray.Direction.x *= invLen;
-            ray.Direction.y *= invLen;
-            ray.Direction.z *= invLen;
-        }
     }
 
     return light;
 }
 
 // ──────────────────────────────────────────────
-// Main render kernel (one thread per pixel)
+// Render kernel: one thread per pixel, outputs raw sample color
 // ──────────────────────────────────────────────
 
+__launch_bounds__(256, 2)
 __global__ void RenderKernel(
-    float4* __restrict__ accumulationBuffer,
-    uint32_t* __restrict__ outputImage,
+    float4* __restrict__ sampleBuffer,
     const GPUScene scene,
     const GPUCamera camera,
     GPURenderSettings settings,
@@ -264,21 +263,38 @@ __global__ void RenderKernel(
     if (x >= imageWidth || y >= imageHeight)
         return;
 
-    // Path trace this pixel
     float3 color = PerPixel(x, y, scene, camera, settings, frameIndex);
-
     uint32_t pixelIndex = x + y * imageWidth;
+    sampleBuffer[pixelIndex] = make_float4(color.x, color.y, color.z, 0.0f);
+}
+
+// ──────────────────────────────────────────────
+// Post-process kernel: accumulate, average, clamp, RGBA convert
+// ──────────────────────────────────────────────
+
+__launch_bounds__(256, 4)
+__global__ void PostProcessKernel(
+    const float4* __restrict__ sampleBuffer,
+    float4* __restrict__ accumulationBuffer,
+    uint32_t* __restrict__ outputImage,
+    uint32_t frameIndex,
+    uint32_t pixelCount)
+{
+    uint32_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx >= pixelCount)
+        return;
+
+    float4 sample = sampleBuffer[idx];
 
     // Accumulate
-    float4 newSample = make_float4(color.x, color.y, color.z, 1.0f);
-    float4 accumulated = accumulationBuffer[pixelIndex];
-    accumulated.x += newSample.x;
-    accumulated.y += newSample.y;
-    accumulated.z += newSample.z;
-    accumulated.w += newSample.w;
-    accumulationBuffer[pixelIndex] = accumulated;
+    float4 accumulated = accumulationBuffer[idx];
+    accumulated.x += sample.x;
+    accumulated.y += sample.y;
+    accumulated.z += sample.z;
+    accumulated.w += 1.0f;  // sample count
+    accumulationBuffer[idx] = accumulated;
 
-    // Average and clamp for output
+    // Average
     float invFrames = 1.0f / static_cast<float>(frameIndex);
     float4 averaged = make_float4(
         accumulated.x * invFrames,
@@ -291,21 +307,21 @@ __global__ void RenderKernel(
     averaged.x = fminf(fmaxf(averaged.x, 0.0f), 1.0f);
     averaged.y = fminf(fmaxf(averaged.y, 0.0f), 1.0f);
     averaged.z = fminf(fmaxf(averaged.z, 0.0f), 1.0f);
-    averaged.w = fminf(fmaxf(averaged.w, 0.0f), 1.0f);
 
     // Convert to RGBA8
     uint8_t r = static_cast<uint8_t>(averaged.x * 255.0f);
     uint8_t g = static_cast<uint8_t>(averaged.y * 255.0f);
     uint8_t b = static_cast<uint8_t>(averaged.z * 255.0f);
-    uint8_t a = static_cast<uint8_t>(averaged.w * 255.0f);
+    uint8_t a = 255;
 
-    outputImage[pixelIndex] = (a << 24) | (b << 16) | (g << 8) | r;
+    outputImage[idx] = (a << 24) | (b << 16) | (g << 8) | r;
 }
 
 // ──────────────────────────────────────────────
 // Clear accumulation buffer to zero
 // ──────────────────────────────────────────────
 
+__launch_bounds__(256, 4)
 __global__ void ClearAccumulationKernel(
     float4* __restrict__ accumulationBuffer,
     uint32_t pixelCount)
