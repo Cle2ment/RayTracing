@@ -6,11 +6,19 @@
 #include "Ray.h"
 #include "Scene.h"
 
+#ifdef WL_OPTIX
+#include "OptiXDenoiser.h"
+#endif
+
 #ifdef WL_CUDA
 #include "CUDARenderer.h"
 #endif
 
 #include <memory>
+
+#ifdef WL_OPTIX
+#include "OptiXDenoiser.h"
+#endif
 
 #include <glm/glm.hpp>
 
@@ -21,6 +29,9 @@ public:
 	{
 		bool Accumulate = true;
 		bool SlowRandom = true;
+#ifdef WL_OPTIX
+		bool EnableDenoising = true;
+#endif
 	};
 
 	Renderer();
@@ -90,6 +101,9 @@ private:
 	std::vector<GPUPackedMaterial> m_GPUMaterials;
 	std::vector<float3>            m_GPURayDirs;
 	uint32_t m_LastSceneVersion = UINT32_MAX;  // Force first upload
+#ifdef WL_OPTIX
+	OptiXDenoiser m_Denoiser;
+#endif
 #endif
 
 #ifdef WL_ISPC

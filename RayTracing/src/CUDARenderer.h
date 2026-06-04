@@ -47,6 +47,15 @@ void CUDARenderer_GetOutput(
     CUDARenderState* state,
     void* hostOutput, uint32_t byteSize);
 
+// Get denoise buffer pointer (float4* HDR, for OptiX denoiser)
+void* CUDARenderer_GetDenoiseBuffer(CUDARenderState* state);
+
+// Convert denoised float4 buffer → RGBA8 output (GPU-side)
+void CUDARenderer_ConvertDenoisedToRGBA(CUDARenderState* state, void* stream);
+
+// Get compute stream for OptiX denoiser
+void* CUDARenderer_GetComputeStream(CUDARenderState* state);
+
 // Settings
 void CUDARenderer_SetSettings(
     CUDARenderState* state,
@@ -69,10 +78,13 @@ void CUDARenderer_DebugFill(CUDARenderState* state);
 #include <cstdint>
 
 // C++-compatible float3 (matches CUDA float3 layout: 12 bytes, alignment 4)
+// Only define when CUDA's float3 from cuda_runtime.h is not already available
+#if !defined(CUDART_VERSION)
 struct float3
 {
     float x, y, z;
 };
+#endif
 
 // Memory layout must match GPUSphere in CUDATypes.cuh
 // Compile-time enforcement via static_assert in CUDATypes.cuh

@@ -2,6 +2,10 @@
 
 #include "OptiXDenoiser.h"
 
+// Define the global OptiX function table (required by optix_stubs.h)
+// Must be defined in exactly one translation unit.
+OptixFunctionTable g_optixFunctionTable_118 = {};
+
 #include <cstdio>
 
 // ── Error-checking helper ──
@@ -76,7 +80,9 @@ bool OptiXDenoiser::Initialize(uint32_t width, uint32_t height, cudaStream_t str
     m_height = height;
 
     OptixDenoiserOptions opts = {};
-    opts.inputKind = OPTIX_DENOISER_INPUT_RGB;
+    opts.guideAlbedo   = 0;
+    opts.guideNormal   = 0;
+    opts.denoiseAlpha  = OPTIX_DENOISER_ALPHA_MODE_COPY;
 
     OPTIX_CHECK(optixDenoiserCreate(
         m_optixContext, OPTIX_DENOISER_MODEL_KIND_HDR,
@@ -143,7 +149,6 @@ void OptiXDenoiser::Denoise(float4* d_input, float4* d_output,
         m_sizes.withoutOverlapScratchSizeInBytes));
 
     OptixDenoiserParams params = {};
-    params.denoiseAlpha  = 0;
     params.blendFactor   = 0.0f;
     params.hdrIntensity  = (CUdeviceptr)m_dHdrIntensity;
 

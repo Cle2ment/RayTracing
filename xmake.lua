@@ -106,7 +106,7 @@ target("RayTracing")
 
     if is_plat("windows") then
         add_cxflags("/utf-8", "/EHsc")
-        add_defines("WL_PLATFORM_WINDOWS")
+        add_defines("WL_PLATFORM_WINDOWS", "NOMINMAX")
         add_links("opengl32", "gdi32")
     end
 
@@ -180,25 +180,25 @@ end
 
 -- Fallback: scan ProgramData for OptiX SDK installations
 if not optix_found then
-    for _, p in ipairs(os.dirs("C:/ProgramData/NVIDIA Corporation/OptiX SDK *") or {}) do
-        local inc = path.join(p, "include")
-        if os.isdir(inc) then
-            optix_include = inc
-            optix_found = true
-            break
+    local base = "C:/ProgramData/NVIDIA Corporation"
+    if os.isdir(base) then
+        for _, p in ipairs(os.dirs(base .. "/*")) do
+            if p:find("OptiX SDK") then
+                local inc = path.join(p, "include")
+                if os.isdir(inc) then
+                    optix_include = inc
+                    optix_found = true
+                    break
+                end
+            end
         end
     end
 end
 
 if optix_found and cuda_found then
     target("RayTracing")
-        add_defines("WL_OPTIX")
+        add_defines("WL_OPTIX", "NOMINMAX")
         add_files("RayTracing/src/OptiXDenoiser.cpp")
         add_includedirs(optix_include)
-        add_links("cuda")  -- CUDA driver API (cuCtxGetCurrent, cuDeviceGet, etc.)
-    print("[OptiX] Denoiser enabled — SDK: " .. optix_include)
-elseif not optix_found then
-    print("[OptiX] SDK not found — denoiser disabled (set OptiX_ROOT env var)")
-else
-    print("[OptiX] CUDA not found — denoiser requires CUDA")
+        add_links("cuda", "Advapi32")
 end

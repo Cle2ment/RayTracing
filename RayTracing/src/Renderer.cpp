@@ -545,6 +545,23 @@ void Renderer::RenderGPU(const Scene& scene, const Camera& camera)
 	// Launch CUDA render kernel
 	CUDARenderer_Render(m_CUDAState, m_FrameIndex);
 
+#ifdef WL_OPTIX
+	// Denoise pass: run OptiX on the averaged HDR buffer, then re-convert to RGBA
+	if (m_Settings.EnableDenoising)
+	{
+		cudaStream_t stream = (cudaStream_t)CUDARenderer_GetComputeStream(m_CUDAState);
+		if (!m_Denoiser.IsValid())
+			m_Denoiser.Initialize(width, height, stream);
+
+		float4* d_denoiseBuf = (float4*)CUDARenderer_GetDenoiseBuffer(m_CUDAState);
+		if (d_denoiseBuf && m_Denoiser.IsValid())
+		{
+			m_Denoiser.Denoise(d_denoiseBuf, d_denoiseBuf, width, height, stream);
+			CUDARenderer_ConvertDenoisedToRGBA(m_CUDAState, stream);
+		}
+	}
+#endif
+
 	// Download output image from GPU
 	CUDARenderer_GetOutput(
 		m_CUDAState,
