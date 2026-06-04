@@ -33,6 +33,10 @@ struct CUDARenderState
     uint32_t allocatedSphereCount;   // Track current GPU allocation size
     uint32_t allocatedMaterialCount;
 
+    cudaStream_t uploadStream;      // Async stream for H2D transfers
+    cudaStream_t computeStream;     // Async stream for kernel launches
+    bool streamsCreated;
+
     bool initialized;
 };
 
@@ -69,6 +73,12 @@ void CUDARenderer_Destroy(CUDARenderState const* state)
     if (state->d_Materials)          cudaFree(state->d_Materials);
     if (state->d_RayDirections)      cudaFree(state->d_RayDirections);
 
+    if (state->streamsCreated)
+    {
+        cudaStreamDestroy(state->uploadStream);
+        cudaStreamDestroy(state->computeStream);
+    }
+
     delete state;
 }
 
@@ -100,6 +110,9 @@ int CUDARenderer_Init(CUDARenderState* state)
 	   prop.totalGlobalMem / (1024 * 1024));
 
     state->initialized = true;
+    cudaStreamCreate(&state->uploadStream);
+    cudaStreamCreate(&state->computeStream);
+    state->streamsCreated = true;
     return 1;
 }
 
@@ -176,17 +189,19 @@ void CUDARenderer_UploadScene(
         }
     }
 
-    // Copy updated data to GPU (every frame — data may have changed)
+    // Copy updated data to GPU asynchronously (every frame when data changed)
     if (sphereCount > 0 && state->d_Spheres)
     {
-        cudaMemcpy(state->d_Spheres, spheres,
-                   sphereCount * sizeof(GPUSphere), cudaMemcpyHostToDevice);
+        cudaMemcpyAsync(state->d_Spheres, spheres,
+                   sphereCount * sizeof(GPUSphere), cudaMemcpyHostToDevice,
+                   state->uploadStream);
     }
 
     if (materialCount > 0 && state->d_Materials)
     {
-        cudaMemcpy(state->d_Materials, materials,
-                   materialCount * sizeof(GPUMaterial), cudaMemcpyHostToDevice);
+        cudaMemcpyAsync(state->d_Materials, materials,
+                   materialCount * sizeof(GPUMaterial), cudaMemcpyHostToDevice,
+                   state->uploadStream);
     }
 
     // Update scene descriptor
@@ -202,8 +217,9 @@ void CUDARenderer_UploadRayDirections(
 {
     if (!state || !state->initialized || !state->d_RayDirections) return;
 
-    cudaMemcpy(state->d_RayDirections, rayDirections,
-               count * sizeof(float3), cudaMemcpyHostToDevice);
+    cudaMemcpyAsync(state->d_RayDirections, rayDirections,
+               count * sizeof(float3), cudaMemcpyHostToDevice,
+               state->uploadStream);
 }
 
 void CUDARenderer_SetCameraPosition(
@@ -220,14 +236,17 @@ void CUDARenderer_Render(
     if (!state || !state->initialized) return;
     if (state->pixelCount == 0) return;
 
+    // Wait for pending uploads to complete before launching compute
+    cudaStreamSynchronize(state->uploadStream);
+
     // Clear accumulation buffer on first frame
     if (frameIndex == 1)
     {
         int threadsPerBlock = 256;
         int blocks = (state->pixelCount + threadsPerBlock - 1) / threadsPerBlock;
-        ClearAccumulationKernel<<<blocks, threadsPerBlock>>>(
+        ClearAccumulationKernel<<<blocks, threadsPerBlock, 0, state->computeStream>>>(
             state->d_AccumulationBuffer, state->pixelCount);
-        cudaDeviceSynchronize();
+        cudaStreamSynchronize(state->computeStream);
     }
 
     // ── Pass 1: Path trace raw samples ──
@@ -237,7 +256,7 @@ void CUDARenderer_Render(
         (state->imageHeight + blockDim.y - 1) / blockDim.y
     );
 
-    RenderKernel<<<gridDim, blockDim>>>(
+    RenderKernel<<<gridDim, blockDim, 0, state->computeStream>>>(
         state->d_SampleBuffer,
         state->gpuScene,
         state->gpuCamera,
@@ -250,7 +269,7 @@ void CUDARenderer_Render(
     // ── Pass 2: Accumulate, average, clamp, RGBA convert ──
     int ppThreads = 256;
     int ppBlocks = (state->pixelCount + ppThreads - 1) / ppThreads;
-    PostProcessKernel<<<ppBlocks, ppThreads>>>(
+    PostProcessKernel<<<ppBlocks, ppThreads, 0, state->computeStream>>>(
         state->d_SampleBuffer,
         state->d_AccumulationBuffer,
         state->d_OutputImage,
@@ -272,6 +291,9 @@ void CUDARenderer_GetOutput(
 {
     if (!state || !state->initialized || !state->d_OutputImage)
         return;
+
+    // Ensure compute is finished before reading output
+    cudaStreamSynchronize(state->computeStream);
 
     cudaMemcpy(hostOutput, state->d_OutputImage,
                byteSize, cudaMemcpyDeviceToHost);
