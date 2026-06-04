@@ -298,6 +298,25 @@ __device__ inline float3 PerPixel(
         );
 
         // ── GGX Microfacet BRDF ──
+        float rough = fmaxf(material.Roughness, 0.001f);
+
+        // DIAGNOSTIC: roughness >= 0.999 → pure diffuse (old Lambertian behavior)
+        if (rough >= 0.999f)
+        {
+            float3 u_d, v_d, w_d;
+            BuildONB(payload.WorldNormal, u_d, v_d, w_d);
+            float3 localDir = RandomCosineWeightedDirection(seed);
+            ray.Direction = make_float3(
+                u_d.x*localDir.x + v_d.x*localDir.y + w_d.x*localDir.z,
+                u_d.y*localDir.x + v_d.y*localDir.y + w_d.y*localDir.z,
+                u_d.z*localDir.x + v_d.z*localDir.y + w_d.z*localDir.z
+            );
+            contribution.x *= material.Albedo.x;
+            contribution.y *= material.Albedo.y;
+            contribution.z *= material.Albedo.z;
+            continue;
+        }
+
         float3 w_o = make_float3(-ray.Direction.x, -ray.Direction.y, -ray.Direction.z);
         float3 N   = payload.WorldNormal;
         float NdotV = fmaxf(N.x*w_o.x + N.y*w_o.y + N.z*w_o.z, 0.001f);
@@ -308,7 +327,6 @@ __device__ inline float3 PerPixel(
             0.04f + (material.Albedo.y - 0.04f) * material.Metallic,
             0.04f + (material.Albedo.z - 0.04f) * material.Metallic
         );
-        float  rough = fmaxf(material.Roughness, 0.001f);
         float  a = rough * rough;
 
         // ── Randomly choose specular or diffuse ──
