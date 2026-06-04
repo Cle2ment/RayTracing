@@ -300,10 +300,11 @@ export void ISPCRenderPixels(
             SampleGGX_VNDF(woX, woY, woZ, a, rn1, rn2, H);
             float NdotH = max(dot3(normX, normY, normZ, H[0], H[1], H[2]), 0.001f);
 
-            // Reflect outgoing around H
-            varying float wiX = 2.0f * NdotH * H[0] - woX;
-            varying float wiY = 2.0f * NdotH * H[1] - woY;
-            varying float wiZ = 2.0f * NdotH * H[2] - woZ;
+            // Reflect outgoing around H using dot(wo, H)
+            varying float WoDotH_signed = woX*H[0] + woY*H[1] + woZ*H[2];
+            varying float wiX = 2.0f * WoDotH_signed * H[0] - woX;
+            varying float wiY = 2.0f * WoDotH_signed * H[1] - woY;
+            varying float wiZ = 2.0f * WoDotH_signed * H[2] - woZ;
             {
                 varying float wiLenSq = wiX*wiX + wiY*wiY + wiZ*wiZ;
                 if (wiLenSq > 0.0f) {
@@ -313,8 +314,8 @@ export void ISPCRenderPixels(
             }
             float NdotL = max(dot3(normX, normY, normZ, wiX, wiY, wiZ), 0.001f);
 
-            // dot(wo, H) — correct Fresnel angle
-            varying float WoDotH = woX*H[0] + woY*H[1] + woZ*H[2];
+            // WoDotH for Fresnel/PDF (absolute value)
+            varying float WoDotH = WoDotH_signed;
             if (WoDotH < 0.0f) WoDotH = -WoDotH;
 
             float D = GGX_D(NdotH, a);
