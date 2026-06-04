@@ -42,10 +42,16 @@ void CUDARenderer_SetCameraPosition(
 // Render one frame (launches CUDA kernel)
 void CUDARenderer_Render(CUDARenderState* state, uint32_t frameIndex);
 
-// Download output image (device → host)
+// Download output image (device → host) — legacy, skipped when interop active
 void CUDARenderer_GetOutput(
     CUDARenderState* state,
     void* hostOutput, uint32_t byteSize);
+
+// Vulkan-CUDA interop: set externally-allocated output buffer (null = use d_OutputImage)
+void CUDARenderer_SetOutputBuffer(CUDARenderState* state, void* devPtr);
+
+// Synchronize CUDA compute stream (replaces blocking GetOutput when interop active)
+void CUDARenderer_Sync(CUDARenderState* state);
 
 // Get denoise buffer pointer (float4* HDR, for OptiX denoiser)
 void* CUDARenderer_GetDenoiseBuffer(CUDARenderState* state);
