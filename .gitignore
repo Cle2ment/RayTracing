@@ -1,50 +1,54 @@
-# Directories
+# ─── IDE & Editor ───
 .vs/
+.vscode/compile_commands.json
+.omo/
+superpowers/
+
+# ─── Build System (xmake) ───
+build/
+.xmake/
+vsxmake2026/
+
+# ─── Visual Studio Project Files ───
+*.vcxproj
+*.vcxproj.user
+*.vcxproj.filters
+*.sln
+*.slnx
 bin/
 bin-int/
+
+# ─── Dependencies (vendored, except ISPC) ───
 vendor/*
 !vendor/ispc/
 vendor/ispc/*
 !vendor/ispc/.gitkeep
 
-
-# Files
-*.vcxproj
-*.vcxproj.user
-*.vcxproj.filters
-
-# UI configs
-*.ini
-
-# Copilot Assist
-copilot*.md
-
-.omo/
-superpowers/
-docs/language-refactoring-analysis.md
-
-# CUDA Build Artifacts
+# ─── Compilation Artifacts ───
 *.obj
-*.exp
-*.lib
 *.pdb
 *.ilk
+*.exp
+*.lib
 *.iobj
 *.ipdb
+*.exe
+*.bin
+
+# ─── CUDA Build Artifacts ───
 *.ptx
 *.cubin
 *.fatbin
 nvcc_temp/
 
-*.bin
-*.exe
-
-# ISPC generated files
+# ─── ISPC Generated Files ───
 RayTracing/src/PathTracer.ispc.obj
 RayTracing/src/PathTracer_ispc.h
 RayTracing/src/PathTracer_ispc_*.h
 
-# xmake
-build/
-.xmake/
-.vscode/compile_commands.json
+# ─── Runtime Config ───
+*.ini
+
+# ─── Project-specific ───
+copilot*.md
+docs/language-refactoring-analysis.md

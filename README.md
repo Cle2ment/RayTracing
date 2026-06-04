@@ -7,7 +7,7 @@
 ![Static Badge](https://img.shields.io/badge/CPU-ISPC-cyan?logo=intel)
 <br>
 ![Static Badge](https://img.shields.io/badge/Build-Xmake-brightgreen?logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+PHBvbHlnb24gcG9pbnRzPSI2NCw0IDY0LDYyIDYyLDY0IDEsNjQgMCw2MyAwLDQwIDYwLDMiIGZpbGw9IiNmZmYiLz48L3N2Zz4=)
-![Static Badge](https://img.shields.io/badge/Project-Premake-blue?logo=lua)
+![Static Badge](https://img.shields.io/badge/Project-Xmake-blue?logo=lua)
 [![Build](https://github.com/Cle2ment/RayTracing/actions/workflows/build.yml/badge.svg)](https://github.com/Cle2ment/RayTracing/actions/workflows/build.yml)
 ![Static Badge](https://img.shields.io/badge/License-MIT-green)
 
@@ -36,51 +36,114 @@ A real-time interactive path tracer built with C++23 on the [Walnut](https://git
 
 **GPU Kernel Layout**: 16×16 thread blocks, one CUDA thread per pixel.
 
-## Requirements
-
-- **NVIDIA GPU** (optional) with Compute Capability ≥ 7.5
-  - sm_75: GTX 16xx, RTX 20xx
-  - sm_86: RTX 30xx
-  - sm_89: RTX 40xx
-  - sm_120: RTX 50xx
-- **CUDA Toolkit 12.0+** (optional, 13.x recommended)
-- **Vulkan SDK 1.4+**
-- **Visual Studio 2026** (or 2022) with C++23 support
-- **ISPC** — auto-downloaded by `scripts\Setup.bat`, no manual install needed
-
 ## Quick Start
 
 ```bash
-# Clone with submodules
+# Clone with submodules (RECOMMENDED)
 git clone --recursive https://github.com/Cle2ment/RayTracing.git
 cd RayTracing
 
-# One-click setup & build (auto-downloads ISPC)
+# If you cloned without --recursive, initialize submodules manually:
+git submodule update --init --recursive
+
+# One-click setup, build, and VS solution generation
 scripts\Setup.bat
 
-# Or manual build:
-xmake f -m release && xmake build
+# Run the path tracer
 xmake run RayTracing
 ```
+
+## Build & Run
+
+### Prerequisites
+
+| Dependency | Required | Notes |
+|-----------|----------|-------|
+| [Visual Studio 2026](https://visualstudio.microsoft.com/) (or 2022) | ✅ | C++ desktop workload, MSVC v143+ |
+| [Vulkan SDK 1.4+](https://vulkan.lunarg.com/) | ✅ | Set `VULKAN_SDK` environment variable |
+| [CUDA Toolkit 12.0+](https://developer.nvidia.com/cuda-downloads) | Optional | Set `CUDA_PATH`; auto-detected by xmake |
+| [ISPC](https://ispc.github.io/) | Optional | Auto-downloaded by `Setup.bat` → `vendor/ispc/` |
+| [.NET SDK](https://dotnet.microsoft.com/) | Optional | Required only for `.sln` → `.slnx` migration |
+| [xmake](https://xmake.io/) | Auto | `Setup.bat` uses xmake; install globally for CLI usage |
+
+### Method 1: One-Click (Setup.bat)
+
+```bash
+scripts\Setup.bat
+```
+
+This single command handles everything:
+1. Checks Walnut submodule — auto-initializes if missing
+2. Configures xmake (`xmake f -m release`)
+3. Builds all targets (`xmake build`) — Walnut.lib + RayTracing.exe
+4. Generates Visual Studio solution (`xmake project -k vsxmake`)
+5. Converts `.sln` → `.slnx` via `dotnet sln migrate`
+
+**Output**:
+- `build/windows/x64/release/RayTracing.exe`
+- `vsxmake2026/RayTracing.slnx` — open this in Visual Studio
+
+### Method 2: CLI Build
+
+```bash
+# Configure and build (Release)
+xmake f -m release
+xmake build
+
+# Run
+xmake run RayTracing
+
+# Debug build
+xmake f -m debug
+xmake build
+```
+
+### Method 3: Visual Studio
+
+```bash
+# Generate VS solution (after initial build)
+xmake project -k vsxmake -y -m release
+
+# Convert to .slnx
+dotnet sln vsxmake2026\RayTracing.sln migrate
+```
+
+Open `vsxmake2026\RayTracing.slnx` in Visual Studio, set RayTracing as startup project, and press F5.
+
+> **Note**: After editing `xmake.lua`, re-run `xmake project -k vsxmake -y -m release && dotnet sln vsxmake2026\RayTracing.sln migrate` to refresh the VS project files.
+
+### Build Matrix
+
+| Command | CUDA | ISPC | Output |
+|---------|------|------|--------|
+| `xmake f -m release && xmake build` | Auto-detect | Auto-detect | `build/windows/x64/release/RayTracing.exe` |
+| `xmake f -m debug && xmake build` | Auto-detect | Auto-detect | `build/windows/x64/debug/RayTracing.exe` |
+| `xmake run RayTracing` | — | — | Runs the built executable |
 
 ## File Structure
 
 ```
 RayTracing/
-├── src/
-│   ├── WalnutApp.cpp          # Entry point, ImGui UI, scene setup
-│   ├── Renderer.h/cpp         # Renderer (CPU/GPU/ISPC dispatch)
-│   ├── Camera.h/cpp           # FPS camera, ray direction pre-computation
-│   ├── Ray.h                  # Ray struct
-│   ├── Scene.h                # Material, Sphere, Scene data
-│   ├── PathTracer.ispc        # ISPC SIMD path tracing kernel
-│   ├── CUDATypes.cuh          # GPU data structures
-│   ├── CUDARenderer.cuh       # GPU kernels + device functions
-│   ├── CUDARenderer.cu        # CUDA host wrappers (C linkage)
-│   └── CUDARenderer.h         # Host C++ interface + packing helpers
+├── RayTracing/src/             # Application source
+│   ├── WalnutApp.cpp           # Entry point, ImGui UI, scene setup
+│   ├── Renderer.h/cpp          # Renderer (CPU/GPU/ISPC dispatch)
+│   ├── Camera.h/cpp            # FPS camera, ray direction pre-computation
+│   ├── Ray.h                   # Ray struct
+│   ├── Scene.h                 # Material, Sphere, Scene data
+│   ├── PathTracer.ispc         # ISPC SIMD path tracing kernel
+│   ├── CUDATypes.cuh           # GPU data structures
+│   ├── CUDARenderer.cuh        # GPU kernels + device functions
+│   ├── CUDARenderer.cu         # CUDA host wrappers (C linkage)
+│   └── CUDARenderer.h          # Host C++ interface + packing helpers
 ├── xmake.lua                   # Build config (CUDA + ISPC detection)
-├── scripts/Setup.bat          # One-click project generation
-└── .github/workflows/         # CI/CD (CUDA 13.3 + Vulkan)
+├── scripts/
+│   └── Setup.bat               # One-click build + solution generation
+├── Walnut/                     # Git submodule — DO NOT modify directly
+│   ├── Walnut/src/             # Walnut framework
+│   ├── vendor/glfw/            # GLFW windowing
+│   ├── vendor/imgui/           # ImGui UI library
+│   └── vendor/glm/             # GLM math library
+└── .github/workflows/          # CI/CD (CUDA 13.3 + Vulkan)
 ```
 
 ## Key Bindings
@@ -103,12 +166,14 @@ RayTracing/
 
 | Symptom | Cause | Solution |
 |---------|-------|----------|
+| `Walnut\Walnut\src\...` not found | Submodule not initialized | `git submodule update --init --recursive` |
+| `.vcxproj` not found in VS | `vsxmake2026\RayTracing.slnx` is stale | Re-run `scripts\Setup.bat` or `xmake project -k vsxmake` then `dotnet sln vsxmake2026\RayTracing.sln migrate` |
 | Viewport is black | CUDA architecture mismatch | Check GPU supports `sm_XX` in `xmake.lua` |
-| `no kernel image is available` | nvcc not targeting your GPU | Add `-gencode=arch=compute_XX,code=sm_XX` |
-| `CUDA_PATH` not set | Environment variable missing | System → Environment Variables → `CUDA_PATH` → CUDA dir |
-| `.cu` files not compiled | `CUDA_PATH` not set at generation time | Restart terminal, `echo %CUDA_PATH%`, re-run `Setup.bat` |
-| `CUDARenderer_*` undefined | Object file not linked | Check `linkoptions { "$(IntDir)CUDARenderer.obj" }` |
-| `invalid value 'C++23'` | Old premake5 bundled with Walnut | Re-run `scripts\Setup.bat` for premake5 5.0.0-beta8 |
+| `no kernel image is available` | nvcc not targeting your GPU | Add matching `add_cugencodes("compute_XX", "sm_XX")` in `xmake.lua` |
+| `CUDA_PATH` not set / `.cu` not compiled | Environment variable missing | Set `CUDA_PATH` in System Environment Variables, restart terminal |
+| `cannot match add_files("Walnut\Walnut\src\**.cpp")` | `git submodule update --init` not run | See first row above |
+| ISPC not found (no SIMD) | ISPC not in `vendor/ispc/` | `Setup.bat` auto-downloads it; re-run if needed |
+| `dotnet sln migrate` fails | .NET SDK not installed | Install [.NET SDK](https://dotnet.microsoft.com/) or open `vsxmake2026\RayTracing.sln` directly |
 
 ## License
 
