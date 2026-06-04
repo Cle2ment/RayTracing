@@ -145,7 +145,7 @@ void CUDARenderer_OnResize(CUDARenderState* state, uint32_t width, uint32_t heig
 
 	std::printf("[CUDA] Resized to %ux%u (%.2f MB device memory)\n",
 	   width, height,
-	   static_cast<float>(state->pixelCount * (sizeof(float4) + sizeof(uint32_t) + sizeof(float3))) / (1024.0f * 1024.0f));
+	   static_cast<float>(state->pixelCount * (2 * sizeof(float4) + sizeof(uint32_t) + sizeof(float3))) / (1024.0f * 1024.0f));
 }
 
 void CUDARenderer_UploadScene(
