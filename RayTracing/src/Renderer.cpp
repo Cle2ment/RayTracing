@@ -362,11 +362,26 @@ void Renderer::Render(const Scene& scene, const Camera& camera)
 #endif // WL_ISPC
 #endif // !WL_CUDA
 
+#ifdef WL_CUDA
 	if (m_InteropEnabled && m_Interop)
 	{
 		// Interop path: CUDA wrote to Vulkan buffer, copy to Walnut's VkImage
 		VkCommandBuffer cmd = Walnut::Application::GetCommandBuffer(true);
 		VkImage dstImage = m_FinalImage->GetImage();
+
+		// Buffer barrier: external (CUDA) write → Vulkan transfer read
+		VkBufferMemoryBarrier bufBarrier = {};
+		bufBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+		bufBarrier.srcAccessMask = 0;
+		bufBarrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+		bufBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		bufBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		bufBarrier.buffer = m_Interop->GetVulkanBuffer();
+		bufBarrier.size = VK_WHOLE_SIZE;
+		vkCmdPipelineBarrier(cmd,
+			VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+			VK_PIPELINE_STAGE_TRANSFER_BIT,
+			0, 0, nullptr, 1, &bufBarrier, 0, nullptr);
 
 		VkImageMemoryBarrier preBarrier = {};
 		preBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -403,6 +418,7 @@ void Renderer::Render(const Scene& scene, const Camera& camera)
 		Walnut::Application::FlushCommandBuffer(cmd);
 	}
 	else
+#endif
 	{
 		m_FinalImage->SetData(m_ImageData);
 	}

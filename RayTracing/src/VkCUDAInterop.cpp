@@ -24,7 +24,6 @@ VkCUDAInterop::VkCUDAInterop(uint32_t width, uint32_t height)
 VkCUDAInterop::~VkCUDAInterop()
 {
     VkDevice device = Walnut::Application::GetDevice();
-    if (m_CUDADevPtr) cudaFree(m_CUDADevPtr);
     if (m_CUDAExtMem) cudaDestroyExternalMemory(m_CUDAExtMem);
     if (m_Memory) vkFreeMemory(device, m_Memory, nullptr);
     if (m_Buffer) vkDestroyBuffer(device, m_Buffer, nullptr);
@@ -42,7 +41,7 @@ void VkCUDAInterop::CreateVulkanBuffer()
     bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     bufferInfo.pNext = &extInfo;
     bufferInfo.size = m_Size;
-    bufferInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+    bufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
 
     if (vkCreateBuffer(device, &bufferInfo, nullptr, &m_Buffer) != VK_SUCCESS)
         throw std::runtime_error("VkCUDAInterop: vkCreateBuffer failed");
@@ -50,13 +49,19 @@ void VkCUDAInterop::CreateVulkanBuffer()
     VkMemoryRequirements memReq;
     vkGetBufferMemoryRequirements(device, m_Buffer, &memReq);
 
+    VkMemoryDedicatedAllocateInfo dedicatedInfo = {};
+    dedicatedInfo.sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO;
+    dedicatedInfo.buffer = m_Buffer;
+
     VkExportMemoryAllocateInfo exportInfo = {};
     exportInfo.sType = VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO;
     exportInfo.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT;
+    exportInfo.pNext = nullptr;
+    dedicatedInfo.pNext = &exportInfo;
 
     VkMemoryAllocateInfo allocInfo = {};
     allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    allocInfo.pNext = &exportInfo;
+    allocInfo.pNext = &dedicatedInfo;
     allocInfo.allocationSize = memReq.size;
     allocInfo.memoryTypeIndex = FindMemoryType(memReq.memoryTypeBits,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
