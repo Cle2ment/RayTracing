@@ -247,6 +247,7 @@ __device__ inline float3 PerPixel(
 // Main render kernel (one thread per pixel)
 // ──────────────────────────────────────────────
 
+__launch_bounds__(256, 2)
 __global__ void RenderKernel(
     float4* __restrict__ accumulationBuffer,
     uint32_t* __restrict__ outputImage,
@@ -305,6 +306,7 @@ __global__ void RenderKernel(
 // Clear accumulation buffer to zero
 // ──────────────────────────────────────────────
 
+__launch_bounds__(256, 4)
 __global__ void ClearAccumulationKernel(
     float4* __restrict__ accumulationBuffer,
     uint32_t pixelCount)
