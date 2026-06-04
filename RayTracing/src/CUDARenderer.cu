@@ -5,6 +5,16 @@
 // because NVCC cannot forward --std=c++23 to the MSVC host compiler.
 // MSVC only supports /std:c++latest (not /std:c++23), so NVCC falls back.
 
+// ─── CUDA Error Checking Macro ───
+#define CUDA_CHECK(call)                                                       \
+    do {                                                                       \
+        cudaError_t _e = (call);                                               \
+        if (_e != cudaSuccess) {                                               \
+            std::fprintf(stderr, "[CUDA] Error at %s:%d — %s (code %d)\n",     \
+                         __FILE__, __LINE__, cudaGetErrorString(_e), (int)_e); \
+        }                                                                      \
+    } while (0)
+
 // ──────────────────────────────────────────────
 // Host wrapper functions (C linkage for interop)
 // ──────────────────────────────────────────────
@@ -109,14 +119,14 @@ int CUDARenderer_Init(CUDARenderState* state)
     }
 
     cudaDeviceProp prop;
-    cudaGetDeviceProperties(&prop, 0);
+    CUDA_CHECK(cudaGetDeviceProperties(&prop, 0));
 	std::printf("[CUDA] Using device: %s (Compute %d.%d, %zu MB)\n",
 	   prop.name, prop.major, prop.minor,
 	   prop.totalGlobalMem / (1024 * 1024));
 
     state->initialized = true;
-    cudaStreamCreate(&state->uploadStream);
-    cudaStreamCreate(&state->computeStream);
+    CUDA_CHECK(cudaStreamCreate(&state->uploadStream));
+    CUDA_CHECK(cudaStreamCreate(&state->computeStream));
     state->streamsCreated = true;
     return 1;
 }
@@ -140,11 +150,11 @@ void CUDARenderer_OnResize(CUDARenderState* state, uint32_t width, uint32_t heig
     if (state->d_RayDirections)      cudaFree(state->d_RayDirections);
 
     // Allocate new buffers
-    cudaMalloc(&state->d_SampleBuffer,       state->pixelCount * sizeof(float4));
-    cudaMalloc(&state->d_DenoiseBuffer,      state->pixelCount * sizeof(float4));
-    cudaMalloc(&state->d_AccumulationBuffer, state->pixelCount * sizeof(float4));
-    cudaMalloc(&state->d_OutputImage, state->pixelCount * sizeof(uint32_t));
-    cudaMalloc(&state->d_RayDirections, state->pixelCount * sizeof(float3));
+    CUDA_CHECK(cudaMalloc(&state->d_SampleBuffer,       state->pixelCount * sizeof(float4)));
+    CUDA_CHECK(cudaMalloc(&state->d_DenoiseBuffer,      state->pixelCount * sizeof(float4)));
+    CUDA_CHECK(cudaMalloc(&state->d_AccumulationBuffer, state->pixelCount * sizeof(float4)));
+    CUDA_CHECK(cudaMalloc(&state->d_OutputImage, state->pixelCount * sizeof(uint32_t)));
+    CUDA_CHECK(cudaMalloc(&state->d_RayDirections, state->pixelCount * sizeof(float3)));
 
     state->gpuCamera.ImageWidth = width;
     state->gpuCamera.ImageHeight = height;
@@ -170,7 +180,7 @@ void CUDARenderer_UploadScene(
 
         if (sphereCount > 0)
         {
-            cudaMalloc(&state->d_Spheres, sphereCount * sizeof(GPUSphere));
+            CUDA_CHECK(cudaMalloc(&state->d_Spheres, sphereCount * sizeof(GPUSphere)));
             state->allocatedSphereCount = sphereCount;
         }
         else
@@ -187,7 +197,7 @@ void CUDARenderer_UploadScene(
 
         if (materialCount > 0)
         {
-            cudaMalloc(&state->d_Materials, materialCount * sizeof(GPUMaterial));
+            CUDA_CHECK(cudaMalloc(&state->d_Materials, materialCount * sizeof(GPUMaterial)));
             state->allocatedMaterialCount = materialCount;
         }
         else
@@ -199,16 +209,16 @@ void CUDARenderer_UploadScene(
     // Copy updated data to GPU asynchronously (every frame when data changed)
     if (sphereCount > 0 && state->d_Spheres)
     {
-        cudaMemcpyAsync(state->d_Spheres, spheres,
+        CUDA_CHECK(cudaMemcpyAsync(state->d_Spheres, spheres,
                    sphereCount * sizeof(GPUSphere), cudaMemcpyHostToDevice,
-                   state->uploadStream);
+                   state->uploadStream));
     }
 
     if (materialCount > 0 && state->d_Materials)
     {
-        cudaMemcpyAsync(state->d_Materials, materials,
+        CUDA_CHECK(cudaMemcpyAsync(state->d_Materials, materials,
                    materialCount * sizeof(GPUMaterial), cudaMemcpyHostToDevice,
-                   state->uploadStream);
+                   state->uploadStream));
     }
 
     // Update scene descriptor
@@ -224,9 +234,9 @@ void CUDARenderer_UploadRayDirections(
 {
     if (!state || !state->initialized || !state->d_RayDirections) return;
 
-    cudaMemcpyAsync(state->d_RayDirections, rayDirections,
+    CUDA_CHECK(cudaMemcpyAsync(state->d_RayDirections, rayDirections,
                count * sizeof(float3), cudaMemcpyHostToDevice,
-               state->uploadStream);
+               state->uploadStream));
 }
 
 void CUDARenderer_SetCameraPosition(
@@ -244,7 +254,7 @@ void CUDARenderer_Render(
     if (state->pixelCount == 0) return;
 
     // Wait for pending uploads to complete before launching compute
-    cudaStreamSynchronize(state->uploadStream);
+    CUDA_CHECK(cudaStreamSynchronize(state->uploadStream));
 
     // Clear accumulation buffer on first frame
     if (frameIndex == 1)
@@ -253,7 +263,7 @@ void CUDARenderer_Render(
         int blocks = (state->pixelCount + threadsPerBlock - 1) / threadsPerBlock;
         ClearAccumulationKernel<<<blocks, threadsPerBlock, 0, state->computeStream>>>(
             state->d_AccumulationBuffer, state->pixelCount);
-        cudaStreamSynchronize(state->computeStream);
+        CUDA_CHECK(cudaStreamSynchronize(state->computeStream));
     }
 
     // ── Pass 1: Path trace raw samples ──
@@ -301,10 +311,10 @@ void CUDARenderer_GetOutput(
         return;
 
     // Ensure compute is finished before reading output
-    cudaStreamSynchronize(state->computeStream);
+    CUDA_CHECK(cudaStreamSynchronize(state->computeStream));
 
-    cudaMemcpy(hostOutput, state->d_OutputImage,
-               byteSize, cudaMemcpyDeviceToHost);
+    CUDA_CHECK(cudaMemcpy(hostOutput, state->d_OutputImage,
+               byteSize, cudaMemcpyDeviceToHost));
 }
 
 void* CUDARenderer_GetDenoiseBuffer(CUDARenderState* state)
@@ -356,7 +366,7 @@ void CUDARenderer_DebugFill(CUDARenderState* state)
         state->imageHeight
     );
 
-    cudaDeviceSynchronize();
+    CUDA_CHECK(cudaDeviceSynchronize());
 }
 
 // ─── Vulkan-CUDA Interop API ───
@@ -370,7 +380,7 @@ void CUDARenderer_SetOutputBuffer(CUDARenderState* state, void* devPtr)
 void CUDARenderer_Sync(CUDARenderState* state)
 {
     if (!state || !state->initialized) return;
-    cudaStreamSynchronize(state->computeStream);
+    CUDA_CHECK(cudaStreamSynchronize(state->computeStream));
 }
 
 void CUDARenderer_CheckError(const char* file, int line)

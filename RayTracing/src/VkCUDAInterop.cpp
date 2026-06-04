@@ -69,7 +69,8 @@ void VkCUDAInterop::CreateVulkanBuffer()
     if (vkAllocateMemory(device, &allocInfo, nullptr, &m_Memory) != VK_SUCCESS)
         throw std::runtime_error("VkCUDAInterop: vkAllocateMemory failed");
 
-    vkBindBufferMemory(device, m_Buffer, m_Memory, 0);
+    if (vkBindBufferMemory(device, m_Buffer, m_Memory, 0) != VK_SUCCESS)
+        throw std::runtime_error("VkCUDAInterop: vkBindBufferMemory failed");
 }
 
 void VkCUDAInterop::ExportToCUDA()

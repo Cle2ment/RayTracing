@@ -21,6 +21,15 @@ OptixFunctionTable g_optixFunctionTable_118 = {};
         } \
     } while (0)
 
+#define CUDA_CHECK(call)                                                       \
+    do {                                                                       \
+        cudaError_t _e = (call);                                               \
+        if (_e != cudaSuccess) {                                               \
+            std::fprintf(stderr, "[CUDA] Error at %s:%d — %s (code %d)\n",     \
+                         __FILE__, __LINE__, cudaGetErrorString(_e), (int)_e); \
+        }                                                                      \
+    } while (0)
+
 // ── RAII Lifecycle ──
 
 OptiXDenoiser::OptiXDenoiser()
@@ -93,9 +102,9 @@ bool OptiXDenoiser::Initialize(uint32_t width, uint32_t height, cudaStream_t str
     OPTIX_CHECK(optixDenoiserComputeMemoryResources(
         m_denoiser, width, height, &m_sizes));
 
-    cudaMalloc(&m_dStateBuffer,  m_sizes.stateSizeInBytes);
-    cudaMalloc(&m_dScratchBuffer, m_sizes.withoutOverlapScratchSizeInBytes);
-    cudaMalloc(&m_dHdrIntensity,  sizeof(float));
+    CUDA_CHECK(cudaMalloc(&m_dStateBuffer,  m_sizes.stateSizeInBytes));
+    CUDA_CHECK(cudaMalloc(&m_dScratchBuffer, m_sizes.withoutOverlapScratchSizeInBytes));
+    CUDA_CHECK(cudaMalloc(&m_dHdrIntensity,  sizeof(float)));
 
     OPTIX_CHECK(optixDenoiserSetup(
         m_denoiser, (CUstream)stream,
