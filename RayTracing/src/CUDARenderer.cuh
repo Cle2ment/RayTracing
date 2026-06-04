@@ -329,7 +329,8 @@ __device__ inline float3 PerPixel(
 
         float NdotH = cosTheta;
         float WoDotH = w_o.x*H.x + w_o.y*H.y + w_o.z*H.z;
-        if (WoDotH < 0.0f) WoDotH = -WoDotH;
+        // wi goes below surface — absorb this bounce
+        if (WoDotH <= 0.0f) break;
 
         // Reflect: wi = 2*(wo·H)*H - wo  (both in world space)
         float3 wi = make_float3(
