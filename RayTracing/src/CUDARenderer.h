@@ -17,7 +17,7 @@ typedef struct CUDARenderState CUDARenderState;
 
 // Lifecycle
 CUDARenderState* CUDARenderer_Create(void);
-void             CUDARenderer_Destroy(CUDARenderState* state);
+void             CUDARenderer_Destroy(CUDARenderState const* state);
 int              CUDARenderer_Init(CUDARenderState* state);
 void             CUDARenderer_CheckError(const char* file, int line);
 

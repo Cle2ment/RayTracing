@@ -56,7 +56,7 @@ CUDARenderState* CUDARenderer_Create()
     return state;
 }
 
-void CUDARenderer_Destroy(CUDARenderState* state)
+void CUDARenderer_Destroy(CUDARenderState const* state)
 {
     if (!state) return;
 
