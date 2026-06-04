@@ -17,7 +17,8 @@ struct CUDARenderState
     float4*    d_SampleBuffer;        // Device per-pixel sample buffer (raw path trace output)
     float4*    d_DenoiseBuffer;       // Device per-pixel denoise buffer (averaged HDR, for OptiX)
     float4*    d_AccumulationBuffer;  // Device accumulation buffer
-    uint32_t*  d_OutputImage;         // Device output RGBA buffer
+    uint32_t*  d_OutputImage;         // Device output RGBA buffer (legacy, null if interop)
+    void*       d_InteropBuffer;       // External device buffer (Vulkan-CUDA interop, nullptr if disabled)
 
     GPUSphere*   d_Spheres;           // Device scene spheres
     GPUMaterial* d_Materials;         // Device scene materials
@@ -50,6 +51,7 @@ CUDARenderState* CUDARenderer_Create()
     state->d_DenoiseBuffer = nullptr;
     state->d_AccumulationBuffer = nullptr;
     state->d_OutputImage = nullptr;
+    state->d_InteropBuffer = nullptr;
     state->d_Spheres = nullptr;
     state->d_Materials = nullptr;
     state->d_RayDirections = nullptr;
@@ -278,7 +280,7 @@ void CUDARenderer_Render(
         state->d_SampleBuffer,
         state->d_AccumulationBuffer,
         state->d_DenoiseBuffer,
-        state->d_OutputImage,
+        state->d_InteropBuffer ? (uint32_t*)state->d_InteropBuffer : state->d_OutputImage,
         frameIndex,
         state->pixelCount
     );
@@ -349,12 +351,26 @@ void CUDARenderer_DebugFill(CUDARenderState* state)
     );
 
     DebugFillKernel<<<gridDim, blockDim>>>(
-        state->d_OutputImage,
+        state->d_InteropBuffer ? (uint32_t*)state->d_InteropBuffer : state->d_OutputImage,
         state->imageWidth,
         state->imageHeight
     );
 
     cudaDeviceSynchronize();
+}
+
+// ─── Vulkan-CUDA Interop API ───
+
+void CUDARenderer_SetOutputBuffer(CUDARenderState* state, void* devPtr)
+{
+    if (!state) return;
+    state->d_InteropBuffer = devPtr;
+}
+
+void CUDARenderer_Sync(CUDARenderState* state)
+{
+    if (!state || !state->initialized) return;
+    cudaStreamSynchronize(state->computeStream);
 }
 
 void CUDARenderer_CheckError(const char* file, int line)

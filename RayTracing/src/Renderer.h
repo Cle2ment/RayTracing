@@ -11,6 +11,7 @@
 #endif
 
 #ifdef WL_CUDA
+#include "VkCUDAInterop.h"  // Must precede CUDARenderer.h — defines CUDART_VERSION so float3 guard works
 #include "CUDARenderer.h"
 #endif
 
@@ -31,6 +32,9 @@ public:
 		bool SlowRandom = true;
 #ifdef WL_OPTIX
 		bool EnableDenoising = true;
+#endif
+#ifdef WL_CUDA
+		bool EnableInterop = false;
 #endif
 	};
 
@@ -97,6 +101,8 @@ private:
 
 #ifdef WL_CUDA
 	CUDARenderState* m_CUDAState = nullptr;
+	std::unique_ptr<VkCUDAInterop> m_Interop;
+	bool m_InteropEnabled = false;
 	std::vector<GPUPackedSphere>   m_GPUSpheres;
 	std::vector<GPUPackedMaterial> m_GPUMaterials;
 	std::vector<float3>            m_GPURayDirs;
