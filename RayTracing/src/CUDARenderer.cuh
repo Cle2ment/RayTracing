@@ -19,25 +19,35 @@ __device__ inline float RandomFloat(uint32_t& seed)
     return __uint2float_ru(seed) * 2.3283064365386963e-10f; // 2^-32
 }
 
-__device__ inline float RandomFloatRange(uint32_t& seed, float minVal, float maxVal)
+// Cosine-weighted hemisphere sampling (tangent space, z-up).
+// Eliminates rejection sampling → no warp divergence.
+// Returns direction in hemisphere around local Z axis (unit length).
+__device__ inline float3 RandomCosineWeightedDirection(uint32_t& seed)
 {
-    return minVal + (maxVal - minVal) * RandomFloat(seed);
+	float r1 = RandomFloat(seed);
+	float r2 = RandomFloat(seed);
+
+	float phi = 2.0f * 3.14159265358979323846f * r1;
+	float cosTheta = sqrtf(r2);           // cosine-weighted
+	float sinTheta = sqrtf(1.0f - r2);
+
+	return make_float3(
+		cosf(phi) * sinTheta,
+		sinf(phi) * sinTheta,
+		cosTheta
+	);
 }
 
-__device__ inline float3 RandomInUnitSphere(uint32_t& seed)
+// Build orthonormal basis (ONB) from a normal vector (Duff et al. 2017).
+// Output: tangent (u), bitangent (v), normal (w == n).
+__device__ inline void BuildONB(const float3& n, float3& u, float3& v, float3& w)
 {
-    float3 v;
-    float lenSq;
-    do
-    {
-        v.x = RandomFloatRange(seed, -1.0f, 1.0f);
-        v.y = RandomFloatRange(seed, -1.0f, 1.0f);
-        v.z = RandomFloatRange(seed, -1.0f, 1.0f);
-        lenSq = v.x * v.x + v.y * v.y + v.z * v.z;
-    } while (lenSq > 1.0f || lenSq < 1e-6f);
-
-    float invLen = rsqrtf(lenSq);
-    return make_float3(v.x * invLen, v.y * invLen, v.z * invLen);
+	w = n;
+	float sign = (w.z > 0.0f) ? 1.0f : -1.0f;
+	float a = -1.0f / (sign + w.z);
+	float b = w.x * w.y * a;
+	u = make_float3(1.0f + sign * w.x * w.x * a, sign * b, -sign * w.x);
+	v = make_float3(b, sign + w.y * w.y * a, -w.y);
 }
 
 // ──────────────────────────────────────────────
@@ -218,27 +228,16 @@ __device__ inline float3 PerPixel(
             payload.WorldPosition.z + payload.WorldNormal.z * 0.0001f
         );
 
-        // Diffuse BRDF: sample random direction in hemisphere
-        float3 randomDir = RandomInUnitSphere(seed);
-        ray.Direction = make_float3(
-            payload.WorldNormal.x + randomDir.x,
-            payload.WorldNormal.y + randomDir.y,
-            payload.WorldNormal.z + randomDir.z
-        );
+        // Cosine-weighted diffuse BRDF: sample direction in hemisphere via ONB
+        float3 u, v, w;
+        BuildONB(payload.WorldNormal, u, v, w);
+        float3 localDir = RandomCosineWeightedDirection(seed);
 
-        // Normalize direction
-        float dirLen = sqrtf(
-            ray.Direction.x * ray.Direction.x +
-            ray.Direction.y * ray.Direction.y +
-            ray.Direction.z * ray.Direction.z
+        ray.Direction = make_float3(
+            u.x * localDir.x + v.x * localDir.y + w.x * localDir.z,
+            u.y * localDir.x + v.y * localDir.y + w.y * localDir.z,
+            u.z * localDir.x + v.z * localDir.y + w.z * localDir.z
         );
-        if (dirLen > 0.0f)
-        {
-            float invLen = 1.0f / dirLen;
-            ray.Direction.x *= invLen;
-            ray.Direction.y *= invLen;
-            ray.Direction.z *= invLen;
-        }
     }
 
     return light;
