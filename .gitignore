@@ -47,4 +47,5 @@ RayTracing/src/PathTracer_ispc_*.h
 # xmake
 build/
 .xmake/
+vsxmake2026/
 .vscode/compile_commands.json
