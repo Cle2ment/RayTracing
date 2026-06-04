@@ -1,0 +1,110 @@
+#include "VkCUDAInterop.h"
+#include "Walnut/Application.h"
+#include <stdexcept>
+#include <cstring>
+
+static uint32_t FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties)
+{
+    VkPhysicalDeviceMemoryProperties memProps;
+    vkGetPhysicalDeviceMemoryProperties(Walnut::Application::GetPhysicalDevice(), &memProps);
+    for (uint32_t i = 0; i < memProps.memoryTypeCount; i++)
+        if ((typeFilter & (1 << i)) &&
+            (memProps.memoryTypes[i].propertyFlags & properties) == properties)
+            return i;
+    throw std::runtime_error("VkCUDAInterop: no suitable memory type");
+}
+
+VkCUDAInterop::VkCUDAInterop(uint32_t width, uint32_t height)
+    : m_Width(width), m_Height(height), m_Size(width * height * sizeof(uint32_t))
+{
+    CreateVulkanBuffer();
+    ExportToCUDA();
+}
+
+VkCUDAInterop::~VkCUDAInterop()
+{
+    VkDevice device = Walnut::Application::GetDevice();
+    if (m_CUDADevPtr) cudaFree(m_CUDADevPtr);
+    if (m_CUDAExtMem) cudaDestroyExternalMemory(m_CUDAExtMem);
+    if (m_Memory) vkFreeMemory(device, m_Memory, nullptr);
+    if (m_Buffer) vkDestroyBuffer(device, m_Buffer, nullptr);
+}
+
+void VkCUDAInterop::CreateVulkanBuffer()
+{
+    VkDevice device = Walnut::Application::GetDevice();
+
+    VkExternalMemoryBufferCreateInfo extInfo = {};
+    extInfo.sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO;
+    extInfo.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT;
+
+    VkBufferCreateInfo bufferInfo = {};
+    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufferInfo.pNext = &extInfo;
+    bufferInfo.size = m_Size;
+    bufferInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+
+    if (vkCreateBuffer(device, &bufferInfo, nullptr, &m_Buffer) != VK_SUCCESS)
+        throw std::runtime_error("VkCUDAInterop: vkCreateBuffer failed");
+
+    VkMemoryRequirements memReq;
+    vkGetBufferMemoryRequirements(device, m_Buffer, &memReq);
+
+    VkExportMemoryAllocateInfo exportInfo = {};
+    exportInfo.sType = VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO;
+    exportInfo.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT;
+
+    VkMemoryAllocateInfo allocInfo = {};
+    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    allocInfo.pNext = &exportInfo;
+    allocInfo.allocationSize = memReq.size;
+    allocInfo.memoryTypeIndex = FindMemoryType(memReq.memoryTypeBits,
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+    if (vkAllocateMemory(device, &allocInfo, nullptr, &m_Memory) != VK_SUCCESS)
+        throw std::runtime_error("VkCUDAInterop: vkAllocateMemory failed");
+
+    vkBindBufferMemory(device, m_Buffer, m_Memory, 0);
+}
+
+void VkCUDAInterop::ExportToCUDA()
+{
+    VkDevice device = Walnut::Application::GetDevice();
+
+    auto vkGetMemoryWin32HandleKHR = (PFN_vkGetMemoryWin32HandleKHR)
+        vkGetDeviceProcAddr(device, "vkGetMemoryWin32HandleKHR");
+    if (!vkGetMemoryWin32HandleKHR)
+        throw std::runtime_error("VkCUDAInterop: vkGetMemoryWin32HandleKHR not available");
+
+    VkMemoryGetWin32HandleInfoKHR handleInfo = {};
+    handleInfo.sType = VK_STRUCTURE_TYPE_MEMORY_GET_WIN32_HANDLE_INFO_KHR;
+    handleInfo.memory = m_Memory;
+    handleInfo.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT;
+
+    HANDLE handle = nullptr;
+    if (vkGetMemoryWin32HandleKHR(device, &handleInfo, &handle) != VK_SUCCESS)
+        throw std::runtime_error("VkCUDAInterop: vkGetMemoryWin32HandleKHR failed");
+
+    cudaExternalMemoryHandleDesc extMemDesc = {};
+    extMemDesc.type = cudaExternalMemoryHandleTypeOpaqueWin32;
+    extMemDesc.handle.win32.handle = handle;
+    extMemDesc.size = m_Size;
+    extMemDesc.flags = cudaExternalMemoryDedicated;
+
+    cudaError_t err = cudaImportExternalMemory(&m_CUDAExtMem, &extMemDesc);
+    CloseHandle(handle);
+    if (err != cudaSuccess)
+        throw std::runtime_error(std::string("VkCUDAInterop: cudaImportExternalMemory failed: ") + cudaGetErrorString(err));
+
+    cudaExternalMemoryBufferDesc bufDesc = {};
+    bufDesc.size = m_Size;
+
+    err = cudaExternalMemoryGetMappedBuffer(&m_CUDADevPtr, m_CUDAExtMem, &bufDesc);
+    if (err != cudaSuccess)
+        throw std::runtime_error(std::string("VkCUDAInterop: cudaExternalMemoryGetMappedBuffer failed: ") + cudaGetErrorString(err));
+}
+
+void VkCUDAInterop::SyncCUDAComplete(cudaStream_t stream)
+{
+    cudaStreamSynchronize(stream);
+}
