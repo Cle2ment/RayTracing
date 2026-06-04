@@ -1,4 +1,4 @@
-# 光线追踪：加速实时光线追踪演示
+# 光线追踪：加速的实时演示
 
 [English](/README.md) | [中文](/docs/README_zh-CN.md) | [Français](/docs/README_fr-FR.md)
 
@@ -7,13 +7,13 @@
 ![Static Badge](https://img.shields.io/badge/CPU-ISPC-cyan?logo=intel)
 <br>
 ![Static Badge](https://img.shields.io/badge/Build-Xmake-brightgreen?logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+PHBvbHlnb24gcG9pbnRzPSI2NCw0IDY0LDYyIDYyLDY0IDEsNjQgMCw2MyAwLDQwIDYwLDMiIGZpbGw9IiNmZmYiLz48L3N2Zz4=)
-![Static Badge](https://img.shields.io/badge/Project-Premake-blue?logo=lua)
+![Static Badge](https://img.shields.io/badge/Project-Xmake-blue?logo=lua)
 [![Build](https://github.com/Cle2ment/RayTracing/actions/workflows/build.yml/badge.svg)](https://github.com/Cle2ment/RayTracing/actions/workflows/build.yml)
 ![Static Badge](https://img.shields.io/badge/License-MIT-green)
 
-## 概述
+## 概览
 
-一个基于 C++23 和 [Walnut](https://github.com/TheCherno/Walnut) 应用框架构建的实时交互式路径追踪器。**通过 NVIDIA CUDA 进行 GPU 加速**，**通过 Intel ISPC 进行 CPU 加速** —— 当 CUDA 可用时，整个路径追踪管线在 GPU 上运行，否则通过 ISPC（AVX2/AVX-512）使用 CPU SIMD 作为后备方案。
+一个基于 [Walnut](https://github.com/TheCherno/Walnut) 应用框架、使用 C++23 构建的实时交互式路径追踪器。**通过 NVIDIA CUDA 实现 GPU 加速**，**通过 Intel ISPC 实现 CPU 加速**——当 CUDA 可用时，整个路径追踪管线在 GPU 上运行；否则通过 ISPC（AVX2/AVX-512）提供 CPU SIMD 回退方案。
 
 ### 渲染后端
 
@@ -21,78 +21,141 @@
 |---------|-------------|-----------|
 | **CUDA GPU** | NVIDIA GPU (SM 7.5+) | 检测到 `CUDA_PATH` |
 | **ISPC CPU** | AVX2 + AVX-512 SIMD | 检测到 `vendor/ispc/bin/ispc.exe` |
-| **C++ CPU** | `std::execution::par` 多线程 | 后备方案 |
+| **C++ CPU** | `std::execution::par` 多线程 | 回退方案 |
 
 ### 架构
 
 | 组件 | CPU | GPU (CUDA) |
 |-----------|-----|------------|
-| 光线生成 | ISPC `foreach` 或 `std::execution::par` | CUDA kernel —— 每像素一个线程 |
-| 光线-球体求交 | 暴力循环 | `__device__` 函数 |
-| 路径追踪（5次弹射） | 兰伯特漫反射 BRDF | 兰伯特漫反射 BRDF |
+| 光线生成 | ISPC `foreach` 或 `std::execution::par` | CUDA 内核——每个像素一个线程 |
+| 光线-球体相交 | 暴力循环 | `__device__` 函数 |
+| 路径追踪（5次弹射） | Lambertian 漫反射 BRDF | Lambertian 漫反射 BRDF |
 | 随机数生成 | PCG Hash | PCG Hash (`__device__`) |
 | 俄罗斯轮盘赌 | 3次弹射后 | 3次弹射后 |
 | 显示 | Walnut::Image (Vulkan) | Walnut::Image (Vulkan) 通过 D2H 拷贝 |
 
-**GPU 内核布局**：16×16 线程块，每个像素一个 CUDA 线程。
-
-## 系统要求
-
-- **NVIDIA GPU**（可选）计算能力 ≥ 7.5
-  - sm_75：GTX 16xx，RTX 20xx
-  - sm_86：RTX 30xx
-  - sm_89：RTX 40xx
-  - sm_120：RTX 50xx
-- **CUDA Toolkit 12.0+**（可选，推荐 13.x）
-- **Vulkan SDK 1.4+**
-- **Visual Studio 2026**（或 2022）支持 C++23
-- **ISPC** —— 通过 `scripts\Setup.bat` 自动下载，无需手动安装
+**GPU 内核布局**：16×16 线程块，每个 CUDA 线程对应一个像素。
 
 ## 快速开始
 
 ```bash
-# 克隆包含子模块
+# 克隆仓库并包含子模块（推荐）
 git clone --recursive https://github.com/Cle2ment/RayTracing.git
 cd RayTracing
 
-# 一键设置和构建（自动下载 ISPC）
+# 如果未使用 --recursive 克隆，请手动初始化子模块：
+git submodule update --init --recursive
+
+# 一键设置、构建并生成 VS 解决方案
 scripts\Setup.bat
 
-# 或手动构建：
-xmake f -m release && xmake build
+# 运行路径追踪器
 xmake run RayTracing
 ```
+
+## 构建与运行
+
+### 前置依赖
+
+| 依赖项 | 必需 | 说明 |
+|-----------|----------|-------|
+| [Visual Studio 2026](https://visualstudio.microsoft.com/)（或 2022） | ✅ | C++ 桌面工作负载，MSVC v143+ |
+| [Vulkan SDK 1.4+](https://vulkan.lunarg.com/) | ✅ | 设置 `VULKAN_SDK` 环境变量 |
+| [CUDA Toolkit 12.0+](https://developer.nvidia.com/cuda-downloads) | 可选 | 设置 `CUDA_PATH`；xmake 自动检测 |
+| [ISPC](https://ispc.github.io/) | 可选 | `Setup.bat` 自动下载到 `vendor/ispc/` |
+| [.NET SDK](https://dotnet.microsoft.com/) | 可选 | 仅当需要 `.sln` → `.slnx` 迁移时 |
+| [xmake](https://xmake.io/) | 自动 | `Setup.bat` 使用 xmake；可全局安装用于 CLI |
+
+### 方法 1：一键脚本 (Setup.bat)
+
+```bash
+scripts\Setup.bat
+```
+
+此命令自动完成所有步骤：
+1. 检查 Walnut 子模块——若缺失则自动初始化
+2. 配置 xmake (`xmake f -m release`)
+3. 构建所有目标 (`xmake build`)——Walnut.lib + RayTracing.exe
+4. 生成 Visual Studio 解决方案 (`xmake project -k vsxmake`)
+5. 通过 `dotnet sln migrate` 将 `.sln` 转换为 `.slnx`
+
+**输出**：
+- `build/windows/x64/release/RayTracing.exe`
+- `vsxmake2026/RayTracing.slnx`——在 Visual Studio 中打开此文件
+
+### 方法 2：CLI 构建
+
+```bash
+# 配置并构建（Release 模式）
+xmake f -m release
+xmake build
+
+# 运行
+xmake run RayTracing
+
+# Debug 构建
+xmake f -m debug
+xmake build
+```
+
+### 方法 3：Visual Studio
+
+```bash
+# 生成 VS 解决方案（在首次构建后）
+xmake project -k vsxmake -y -m release
+
+# 转换为 .slnx
+dotnet sln vsxmake2026\RayTracing.sln migrate
+```
+
+在 Visual Studio 中打开 `vsxmake2026\RayTracing.slnx`，将 RayTracing 设为启动项目，按 F5 运行。
+
+> **注意**：修改 `xmake.lua` 后，重新运行 `xmake project -k vsxmake -y -m release && dotnet sln vsxmake2026\RayTracing.sln migrate` 以刷新 VS 项目文件。
+
+### 构建矩阵
+
+| 命令 | CUDA | ISPC | 输出 |
+|---------|------|------|--------|
+| `xmake f -m release && xmake build` | 自动检测 | 自动检测 | `build/windows/x64/release/RayTracing.exe` |
+| `xmake f -m debug && xmake build` | 自动检测 | 自动检测 | `build/windows/x64/debug/RayTracing.exe` |
+| `xmake run RayTracing` | — | — | 运行构建的可执行文件 |
 
 ## 文件结构
 
 ```
 RayTracing/
-├── src/
-│   ├── WalnutApp.cpp          # 入口点，ImGui 界面，场景设置
-│   ├── Renderer.h/cpp         # 渲染器（CPU/GPU/ISPC 分发）
-│   ├── Camera.h/cpp           # FPS 相机，光线方向预计算
-│   ├── Ray.h                  # 光线结构体
-│   ├── Scene.h                # 材质、球体、场景数据
-│   ├── PathTracer.ispc        # ISPC SIMD 路径追踪内核
-│   ├── CUDATypes.cuh          # GPU 数据结构
-│   ├── CUDARenderer.cuh       # GPU 内核 + 设备函数
-│   ├── CUDARenderer.cu        # CUDA 主机包装器（C 链接）
-│   └── CUDARenderer.h         # 主机 C++ 接口 + 打包辅助
+├── RayTracing/src/             # 应用源代码
+│   ├── WalnutApp.cpp           # 入口点、ImGui UI、场景设置
+│   ├── Renderer.h/cpp          # 渲染器（CPU/GPU/ISPC 调度）
+│   ├── Camera.h/cpp            # FPS 相机、光线方向预计算
+│   ├── Ray.h                   # 光线结构体
+│   ├── Scene.h                 # 材质、球体、场景数据
+│   ├── PathTracer.ispc         # ISPC SIMD 路径追踪内核
+│   ├── CUDATypes.cuh           # GPU 数据结构
+│   ├── CUDARenderer.cuh        # GPU 内核 + 设备函数
+│   ├── CUDARenderer.cu         # CUDA 主机封装（C 链接）
+│   └── CUDARenderer.h          # 主机 C++ 接口 + 打包辅助函数
 ├── xmake.lua                   # 构建配置（CUDA + ISPC 检测）
-├── scripts/Setup.bat          # 一键项目生成
-└── .github/workflows/         # CI/CD（CUDA 13.3 + Vulkan）
+├── scripts/
+│   └── Setup.bat               # 一键构建 + 解决方案生成
+├── Walnut/                     # Git 子模块——请勿直接修改
+│   ├── Walnut/src/             # Walnut 框架
+│   ├── vendor/glfw/            # GLFW 窗口管理
+│   ├── vendor/imgui/           # ImGui UI 库
+│   └── vendor/glm/             # GLM 数学库
+└── .github/workflows/          # CI/CD（CUDA 13.3 + Vulkan）
 ```
 
-## 快捷键
+## 按键绑定
 
 | 按键 | 操作 |
 |-----|--------|
 | 右键 + 拖动 | 旋转相机 |
 | W/A/S/D | 移动相机 |
-| Q/E | 向下/向上移动 |
-| 渲染按钮 | 触发重新渲染 |
-| 累积 | 切换渐进式渲染 |
-| 重置 | 清除累积缓冲区 |
+| Q/E | 下移/上移 |
+| Render 按钮 | 触发重新渲染 |
+| Accumulate | 切换渐进式渲染 |
+| Reset | 清除累积缓冲区 |
 
 ## 演示
 
@@ -101,14 +164,16 @@ RayTracing/
 
 ## 故障排除
 
-| 症状 | 原因 | 解决办法 |
+| 症状 | 原因 | 解决方案 |
 |---------|-------|----------|
+| `Walnut\Walnut\src\...` 未找到 | 子模块未初始化 | `git submodule update --init --recursive` |
+| VS 中找不到 `.vcxproj` | `vsxmake2026\RayTracing.slnx` 已过时 | 重新运行 `scripts\Setup.bat` 或 `xmake project -k vsxmake` 然后 `dotnet sln vsxmake2026\RayTracing.sln migrate` |
 | 视口为黑色 | CUDA 架构不匹配 | 检查 GPU 是否支持 `xmake.lua` 中的 `sm_XX` |
-| `no kernel image is available` | nvcc 未针对你的 GPU 编译 | 添加 `-gencode=arch=compute_XX,code=sm_XX` |
-| `CUDA_PATH` 未设置 | 缺少环境变量 | 系统 → 环境变量 → `CUDA_PATH` → CUDA 目录 |
-| `.cu` 文件未编译 | 生成时未设置 `CUDA_PATH` | 重启终端，`echo %CUDA_PATH%`，重新运行 `Setup.bat` |
-| `CUDARenderer_*` 未定义 | 目标文件未链接 | 检查 `linkoptions { "$(IntDir)CUDARenderer.obj" }` |
-| `invalid value 'C++23'` | Walnut 自带的 premake5 版本过旧 | 重新运行 `scripts\Setup.bat` 以获取 premake5 5.0.0-beta8 |
+| `no kernel image is available` | nvcc 未针对你的 GPU | 在 `xmake.lua` 中添加匹配的 `add_cugencodes("compute_XX", "sm_XX")` |
+| `CUDA_PATH` 未设置 / `.cu` 未编译 | 缺失环境变量 | 在系统环境变量中设置 `CUDA_PATH`，重启终端 |
+| `cannot match add_files("Walnut\Walnut\src\**.cpp")` | 未运行 `git submodule update --init` | 参见上方第一行 |
+| 未找到 ISPC（无 SIMD） | ISPC 不在 `vendor/ispc/` 中 | `Setup.bat` 会自动下载；如有需要重新运行 |
+| `dotnet sln migrate` 失败 | 未安装 .NET SDK | 安装 [.NET SDK](https://dotnet.microsoft.com/) 或直接打开 `vsxmake2026\RayTracing.sln` |
 
 ## 许可证
 
