@@ -104,6 +104,10 @@ public:
 		if (ImGui::Checkbox("Denoise", &m_Renderer.GetSettings().EnableDenoising))
 			m_NeedsRender = true;
 #endif
+#ifdef WL_CUDA
+		if (ImGui::Checkbox("Vulkan-CUDA Interop", &m_Renderer.GetSettings().EnableInterop))
+			m_NeedsRender = true;
+#endif
 
 		if (ImGui::Button("Reset"))
 		{

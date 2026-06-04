@@ -2,6 +2,10 @@
 
 #include "Walnut/Random.h"
 
+#ifdef WL_CUDA
+#include "Walnut/Application.h"
+#endif
+
 #include <cstring>
 #include <execution>
 #include <limits>
@@ -181,6 +185,15 @@ void Renderer::OnResize(uint32_t width, uint32_t height)
 	if (cudaInitialized)
 	{
 		CUDARenderer_OnResize(m_CUDAState, width, height);
+
+		// Recreate interop buffer on resize when enabled
+		if (m_InteropEnabled)
+		{
+			try { m_Interop = std::make_unique<VkCUDAInterop>(width, height); }
+			catch (...) { m_Interop.reset(); m_InteropEnabled = false; }
+			if (m_Interop)
+				CUDARenderer_SetOutputBuffer(m_CUDAState, m_Interop->GetCUDADevicePtr());
+		}
 	}
 #endif
 
@@ -349,7 +362,50 @@ void Renderer::Render(const Scene& scene, const Camera& camera)
 #endif // WL_ISPC
 #endif // !WL_CUDA
 
-	m_FinalImage->SetData(m_ImageData);
+	if (m_InteropEnabled && m_Interop)
+	{
+		// Interop path: CUDA wrote to Vulkan buffer, copy to Walnut's VkImage
+		VkCommandBuffer cmd = Walnut::Application::GetCommandBuffer(true);
+		VkImage dstImage = m_FinalImage->GetImage();
+
+		VkImageMemoryBarrier preBarrier = {};
+		preBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+		preBarrier.oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		preBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+		preBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		preBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		preBarrier.image = dstImage;
+		preBarrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+		preBarrier.srcAccessMask = 0;
+		preBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+		vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+			VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &preBarrier);
+
+		VkBufferImageCopy region = {};
+		region.imageSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
+		region.imageExtent = { m_Interop->GetWidth(), m_Interop->GetHeight(), 1 };
+		vkCmdCopyBufferToImage(cmd, m_Interop->GetVulkanBuffer(), dstImage,
+			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+
+		VkImageMemoryBarrier postBarrier = {};
+		postBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+		postBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+		postBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		postBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		postBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		postBarrier.image = dstImage;
+		postBarrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+		postBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+		postBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+		vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT,
+			VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &postBarrier);
+
+		Walnut::Application::FlushCommandBuffer(cmd);
+	}
+	else
+	{
+		m_FinalImage->SetData(m_ImageData);
+	}
 
 	if (m_Settings.Accumulate)
 		m_FrameIndex++;
@@ -573,6 +629,31 @@ void Renderer::RenderGPU(const Scene& scene, const Camera& camera)
 	const uint32_t height = m_FinalImage->GetHeight();
 	if (width == 0 || height == 0) return;
 
+	// Sync interop toggle from settings (requires re-creation on enable)
+	if (m_Settings.EnableInterop != m_InteropEnabled)
+	{
+		m_InteropEnabled = m_Settings.EnableInterop;
+		if (m_InteropEnabled)
+		{
+			try
+			{
+				m_Interop = std::make_unique<VkCUDAInterop>(width, height);
+				CUDARenderer_SetOutputBuffer(m_CUDAState, m_Interop->GetCUDADevicePtr());
+			}
+			catch (...)
+			{
+				m_Interop.reset();
+				m_InteropEnabled = false;
+				m_Settings.EnableInterop = false;
+			}
+		}
+		else
+		{
+			m_Interop.reset();
+			CUDARenderer_SetOutputBuffer(m_CUDAState, nullptr);
+		}
+	}
+
 	// Upload scene data only when changed (tracked by scene version)
 	if (scene.Version != m_LastSceneVersion)
 	{
@@ -631,12 +712,19 @@ void Renderer::RenderGPU(const Scene& scene, const Camera& camera)
 	}
 #endif
 
-	// Download output image from GPU
-	CUDARenderer_GetOutput(
-		m_CUDAState,
-		m_ImageData,
-		width * height * sizeof(uint32_t)
-	);
+	// Download output image from GPU (skip D2H when interop writes directly to Vulkan)
+	if (m_InteropEnabled && m_Interop)
+	{
+		m_Interop->SyncCUDAComplete((cudaStream_t)CUDARenderer_GetComputeStream(m_CUDAState));
+	}
+	else
+	{
+		CUDARenderer_GetOutput(
+			m_CUDAState,
+			m_ImageData,
+			width * height * sizeof(uint32_t)
+		);
+	}
 }
 
 #endif // WL_CUDA
