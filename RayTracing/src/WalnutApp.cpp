@@ -81,6 +81,7 @@ public:
 		if (m_Camera.OnUpdate(ts))
 		{
 			m_Renderer.ResetFrameIndex();
+			m_Renderer.MarkRayDirsDirty();
 			m_NeedsRender = true;
 		}
 	}

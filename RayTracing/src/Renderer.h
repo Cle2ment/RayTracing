@@ -37,6 +37,7 @@ public:
 	[[nodiscard]] std::shared_ptr<Walnut::Image> GetFinalImage() const { return m_FinalImage; }
 
 	void ResetFrameIndex() { m_FrameIndex = 1; }
+	void MarkRayDirsDirty() { m_RayDirsDirty = true; }
 
 	Settings& GetSettings() { return m_Settings; }
 
@@ -81,6 +82,7 @@ private:
 	glm::vec4* m_AccumulationData = nullptr;
 
 	uint32_t m_FrameIndex = 1;
+	bool m_RayDirsDirty = true;  // Tracks if ray directions need re-upload to GPU
 
 #ifdef WL_CUDA
 	CUDARenderState* m_CUDAState = nullptr;
