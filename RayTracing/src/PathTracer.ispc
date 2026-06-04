@@ -52,6 +52,75 @@ static inline void normalize3(varying float v[3]) {
     }
 }
 
+// ── GGX Microfacet BRDF ──
+
+static inline void FresnelSchlick3(float cosTheta, varying float F0[3], varying float out[3]) {
+    varying float t = max(1.0f - cosTheta, 0.0f);
+    varying float t5 = t * t * t * t * t;
+    out[0] = F0[0] + (1.0f - F0[0]) * t5;
+    out[1] = F0[1] + (1.0f - F0[1]) * t5;
+    out[2] = F0[2] + (1.0f - F0[2]) * t5;
+}
+
+static inline float GGX_D(float NdotH, float a) {
+    float a2 = a * a;
+    float d = NdotH * NdotH * (a2 - 1.0f) + 1.0f;
+    return a2 / (3.14159265358979323846f * d * d);
+}
+
+static inline float GGX_G1(float NdotV, float a) {
+    float a2 = a * a;
+    float denom = NdotV + sqrt(NdotV * NdotV * (1.0f - a2) + a2);
+    return 2.0f * NdotV / max(denom, 0.0001f);
+}
+
+static inline float GGX_G(float NdotL, float NdotV, float a) {
+    return GGX_G1(NdotL, a) * GGX_G1(NdotV, a);
+}
+
+static inline void SampleGGX_VNDF(
+    varying float Vx, varying float Vy, varying float Vz,
+    float a, varying float r1, varying float r2,
+    varying float out[3]
+) {
+    // Stretch V
+    varying float Vhx = a * Vx, Vhy = a * Vy, Vhz = Vz;
+    varying float vhLen = sqrt(Vhx*Vhx + Vhy*Vhy + Vhz*Vhz);
+    Vhx /= vhLen; Vhy /= vhLen; Vhz /= vhLen;
+
+    // T1 = normalize(cross(up, Vh))
+    varying float T1x, T1y, T1z;
+    if (Vhz < 0.9999f) {
+        T1x = -Vhy; T1y = Vhx; T1z = 0.0f;
+        varying float t1Len = sqrt(T1x*T1x + T1y*T1y);
+        T1x /= t1Len; T1y /= t1Len;
+    } else {
+        T1x = 1.0f; T1y = 0.0f; T1z = 0.0f;
+    }
+
+    // T2 = cross(Vh, T1)
+    varying float T2x = Vhy*T1z - Vhz*T1y;
+    varying float T2y = Vhz*T1x - Vhx*T1z;
+    varying float T2z = Vhx*T1y - Vhy*T1x;
+
+    varying float r = sqrt(r1);
+    varying float phi = 2.0f * 3.14159265358979323846f * r2;
+    varying float t1 = r * cos(phi);
+    varying float t2 = r * sin(phi);
+    varying float s = 0.5f * (1.0f + Vhz);
+    t2 = (1.0f - s) * sqrt(max(1.0f - t1*t1, 0.0f)) + s * t2;
+
+    varying float nhx = t1*T1x + t2*T2x + sqrt(max(1.0f - t1*t1 - t2*t2, 0.0f)) * Vhx;
+    varying float nhy = t1*T1y + t2*T2y + sqrt(max(1.0f - t1*t1 - t2*t2, 0.0f)) * Vhy;
+    varying float nhz = t1*T1z + t2*T2z + sqrt(max(1.0f - t1*t1 - t2*t2, 0.0f)) * Vhz;
+
+    // Unstretch
+    out[0] = a * nhx;
+    out[1] = a * nhy;
+    out[2] = max(0.0f, nhz);
+    normalize3(out);
+}
+
 // ── Sphere Intersection (matches Renderer.cpp TraceRay exactly) ──
 // Returns: hitDistance (>0 = hit, <0 = miss), and sets closestSphere index
 // The quadratic: a*t^2 + b*t + c = 0  where a = dot(dir,dir) ≈ 1
@@ -214,22 +283,79 @@ export void ISPCRenderPixels(
             rOrigY = hitPosY + normY * 0.0001f;
             rOrigZ = hitPosZ + normZ * 0.0001f;
 
-            // ── Diffuse BRDF: sample random direction in hemisphere ──
-            varying float randDir[3];
-            RandomInUnitSphere(randDir, seed);
+            // Load roughness + metallic for GGX
+            varying float roughVal = max(matRoughness[hmi], 0.001f);
+            varying float metalVal = matMetallic[hmi];
+            varying float a = roughVal * roughVal;
 
-            rDirX = normX + randDir[0];
-            rDirY = normY + randDir[1];
-            rDirZ = normZ + randDir[2];
+            // ── GGX Microfacet BRDF ──
+            // Outgoing direction (pointing away from surface)
+            varying float woX = -rDirX, woY = -rDirY, woZ = -rDirZ;
 
-            // Normalize
-            varying float dirLenSq = rDirX * rDirX + rDirY * rDirY + rDirZ * rDirZ;
-            if (dirLenSq > 0.0f) {
-                varying float invLen = rsqrt(dirLenSq);
-                rDirX *= invLen;
-                rDirY *= invLen;
-                rDirZ *= invLen;
+            // Fresnel F0
+            varying float F0[3];
+            F0[0] = 0.04f + (alR - 0.04f) * metalVal;
+            F0[1] = 0.04f + (alG - 0.04f) * metalVal;
+            F0[2] = 0.04f + (alB - 0.04f) * metalVal;
+
+            float NdotV = max(dot3(normX, normY, normZ, woX, woY, woZ), 0.001f);
+
+            varying float rn1 = RandomFloat(seed), rn2 = RandomFloat(seed);
+            varying float H[3];
+            SampleGGX_VNDF(woX, woY, woZ, a, rn1, rn2, H);
+            float NdotH = max(dot3(normX, normY, normZ, H[0], H[1], H[2]), 0.001f);
+
+            // Reflect outgoing around H
+            varying float wiX = 2.0f * NdotH * H[0] - woX;
+            varying float wiY = 2.0f * NdotH * H[1] - woY;
+            varying float wiZ = 2.0f * NdotH * H[2] - woZ;
+            // Normalize wi
+            {
+                varying float wiLenSq = wiX*wiX + wiY*wiY + wiZ*wiZ;
+                if (wiLenSq > 0.0f) {
+                    varying float inv = rsqrt(wiLenSq);
+                    wiX *= inv; wiY *= inv; wiZ *= inv;
+                }
             }
+            float NdotL = max(dot3(normX, normY, normZ, wiX, wiY, wiZ), 0.001f);
+
+            // BRDF evaluation
+            float D = GGX_D(NdotH, a);
+            float G = GGX_G(NdotL, NdotV, a);
+            varying float F[3];
+            FresnelSchlick3(NdotV, F0, F);
+
+            varying float specR = D * G * F[0] / (4.0f * NdotL * NdotV + 0.001f);
+            varying float specG = D * G * F[1] / (4.0f * NdotL * NdotV + 0.001f);
+            varying float specB = D * G * F[2] / (4.0f * NdotL * NdotV + 0.001f);
+
+            varying float kdR = (1.0f - F[0]) * (1.0f - metalVal);
+            varying float kdG = (1.0f - F[1]) * (1.0f - metalVal);
+            varying float kdB = (1.0f - F[2]) * (1.0f - metalVal);
+            varying float diffR = kdR * alR / 3.14159265358979323846f;
+            varying float diffG = kdG * alG / 3.14159265358979323846f;
+            varying float diffB = kdB * alB / 3.14159265358979323846f;
+
+            varying float specWeight = F[0];
+            if (F[1] > specWeight) specWeight = F[1];
+            if (F[2] > specWeight) specWeight = F[2];
+            specWeight = min(max(specWeight, 0.05f), 0.95f);
+
+            varying float specPdf = D * NdotH / (4.0f * NdotV + 0.001f);
+            varying float diffPdf = NdotL / 3.14159265358979323846f;
+            varying float pdf = max(specWeight * specPdf + (1.0f - specWeight) * diffPdf, 0.001f);
+
+            varying float bsdfR = (specR + diffR) * NdotL;
+            varying float bsdfG = (specG + diffG) * NdotL;
+            varying float bsdfB = (specB + diffB) * NdotL;
+
+            contribR *= bsdfR / pdf;
+            contribG *= bsdfG / pdf;
+            contribB *= bsdfB / pdf;
+
+            rDirX = wiX;
+            rDirY = wiY;
+            rDirZ = wiZ;
         }
 
         // ── Write output ──
