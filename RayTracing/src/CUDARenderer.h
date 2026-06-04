@@ -50,7 +50,7 @@ void CUDARenderer_GetOutput(
 // Settings
 void CUDARenderer_SetSettings(
     CUDARenderState* state,
-    int maxBounces, int accumulate);
+    int maxBounces);
 
 // Debug: fills output with checkerboard test pattern
 void CUDARenderer_DebugFill(CUDARenderState* state);

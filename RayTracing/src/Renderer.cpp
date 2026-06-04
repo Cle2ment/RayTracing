@@ -129,7 +129,7 @@ void Renderer::OnResize(uint32_t width, uint32_t height)
 		if (CUDARenderer_Init(m_CUDAState))
 		{
 			cudaInitialized = true;
-			CUDARenderer_SetSettings(m_CUDAState, 5, static_cast<int>(m_Settings.Accumulate));
+			CUDARenderer_SetSettings(m_CUDAState, 5);
 		}
 	}
 
@@ -539,8 +539,7 @@ void Renderer::RenderGPU(const Scene& scene, const Camera& camera)
 	// Update settings
 	CUDARenderer_SetSettings(
 		m_CUDAState,
-		5, // MaxBounces
-		static_cast<int>(m_Settings.Accumulate)
+		5  // MaxBounces
 	);
 
 	// Launch CUDA render kernel

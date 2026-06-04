@@ -258,11 +258,11 @@ void CUDARenderer_Render(
         state->pixelCount
     );
 
-    // Synchronize to catch kernel errors
-    cudaError_t err = cudaDeviceSynchronize();
+    // Check for async launch errors (non-blocking)
+    cudaError_t err = cudaGetLastError();
     if (err != cudaSuccess)
     {
-		std::fprintf(stderr, "[CUDA] Kernel error: %s\n", cudaGetErrorString(err));
+		std::fprintf(stderr, "[CUDA] Kernel launch error: %s\n", cudaGetErrorString(err));
     }
 }
 
@@ -279,11 +279,10 @@ void CUDARenderer_GetOutput(
 
 void CUDARenderer_SetSettings(
     CUDARenderState* state,
-    int maxBounces, int accumulate)
+    int maxBounces)
 {
     if (!state) return;
     state->gpuSettings.MaxBounces = maxBounces;
-    state->gpuSettings.Accumulate = (accumulate != 0);
 }
 
 void CUDARenderer_DebugFill(CUDARenderState* state)

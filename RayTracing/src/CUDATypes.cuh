@@ -76,7 +76,5 @@ struct GPUCamera
 
 struct GPURenderSettings
 {
-    int  MaxBounces      = 5;
-    bool Accumulate      = true;
-    bool UseFastRandom   = false; // true = Walnut random, false = PCG hash
+    int  MaxBounces = 5;
 };
