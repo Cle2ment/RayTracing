@@ -133,8 +133,11 @@ if cuda_found then
         add_cugencodes("compute_89", "sm_89")
         add_cugencodes("compute_120", "sm_120")
 
-        -- NVCC flags (matching premake5: --use_fast_math, -lineinfo)
-        add_cuflags("--use_fast_math", "-lineinfo")
+        -- NVCC flags
+        add_cuflags("--use_fast_math")
+        if is_mode("release") then
+            add_cuflags("-lineinfo")  -- Debug mode uses -G (device-debug) which implies lineinfo
+        end
 end
 
 -- ── ISPC Support (CPU SIMD acceleration) ──
