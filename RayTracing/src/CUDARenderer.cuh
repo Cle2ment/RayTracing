@@ -276,6 +276,7 @@ __launch_bounds__(256, 4)
 __global__ void PostProcessKernel(
     const float4* __restrict__ sampleBuffer,
     float4* __restrict__ accumulationBuffer,
+    float4* __restrict__ denoiseBuffer,
     uint32_t* __restrict__ outputImage,
     uint32_t frameIndex,
     uint32_t pixelCount)
@@ -291,7 +292,7 @@ __global__ void PostProcessKernel(
     accumulated.x += sample.x;
     accumulated.y += sample.y;
     accumulated.z += sample.z;
-    accumulated.w += 1.0f;  // sample count
+    accumulated.w += 1.0f;
     accumulationBuffer[idx] = accumulated;
 
     // Average
@@ -303,6 +304,9 @@ __global__ void PostProcessKernel(
         accumulated.w * invFrames
     );
 
+    // Write averaged HDR for denoising (before clamp/RGBA conversion)
+    denoiseBuffer[idx] = make_float4(averaged.x, averaged.y, averaged.z, 0.0f);
+
     // Clamp to [0, 1]
     averaged.x = fminf(fmaxf(averaged.x, 0.0f), 1.0f);
     averaged.y = fminf(fmaxf(averaged.y, 0.0f), 1.0f);
@@ -312,6 +316,33 @@ __global__ void PostProcessKernel(
     uint8_t r = static_cast<uint8_t>(averaged.x * 255.0f);
     uint8_t g = static_cast<uint8_t>(averaged.y * 255.0f);
     uint8_t b = static_cast<uint8_t>(averaged.z * 255.0f);
+    uint8_t a = 255;
+
+    outputImage[idx] = (a << 24) | (b << 16) | (g << 8) | r;
+}
+
+// ──────────────────────────────────────────────
+// Convert denoised float4 → RGBA8 (used after OptiX denoise pass)
+// ──────────────────────────────────────────────
+
+__launch_bounds__(256, 4)
+__global__ void ConvertToRGBAKernel(
+    const float4* __restrict__ inputBuffer,
+    uint32_t* __restrict__ outputImage,
+    uint32_t pixelCount)
+{
+    uint32_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx >= pixelCount)
+        return;
+
+    float4 color = inputBuffer[idx];
+    color.x = fminf(fmaxf(color.x, 0.0f), 1.0f);
+    color.y = fminf(fmaxf(color.y, 0.0f), 1.0f);
+    color.z = fminf(fmaxf(color.z, 0.0f), 1.0f);
+
+    uint8_t r = static_cast<uint8_t>(color.x * 255.0f);
+    uint8_t g = static_cast<uint8_t>(color.y * 255.0f);
+    uint8_t b = static_cast<uint8_t>(color.z * 255.0f);
     uint8_t a = 255;
 
     outputImage[idx] = (a << 24) | (b << 16) | (g << 8) | r;

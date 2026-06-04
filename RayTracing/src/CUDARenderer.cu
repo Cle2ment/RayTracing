@@ -15,6 +15,7 @@ extern "C"
 struct CUDARenderState
 {
     float4*    d_SampleBuffer;        // Device per-pixel sample buffer (raw path trace output)
+    float4*    d_DenoiseBuffer;       // Device per-pixel denoise buffer (averaged HDR, for OptiX)
     float4*    d_AccumulationBuffer;  // Device accumulation buffer
     uint32_t*  d_OutputImage;         // Device output RGBA buffer
 
@@ -46,6 +47,7 @@ CUDARenderState* CUDARenderer_Create()
     state->initialized = false;
 
     state->d_SampleBuffer = nullptr;
+    state->d_DenoiseBuffer = nullptr;
     state->d_AccumulationBuffer = nullptr;
     state->d_OutputImage = nullptr;
     state->d_Spheres = nullptr;
@@ -67,6 +69,7 @@ void CUDARenderer_Destroy(CUDARenderState const* state)
     if (!state) return;
 
     if (state->d_SampleBuffer)       cudaFree(state->d_SampleBuffer);
+    if (state->d_DenoiseBuffer)      cudaFree(state->d_DenoiseBuffer);
     if (state->d_AccumulationBuffer) cudaFree(state->d_AccumulationBuffer);
     if (state->d_OutputImage)        cudaFree(state->d_OutputImage);
     if (state->d_Spheres)            cudaFree(state->d_Spheres);
@@ -129,12 +132,14 @@ void CUDARenderer_OnResize(CUDARenderState* state, uint32_t width, uint32_t heig
 
     // Free old buffers
     if (state->d_SampleBuffer)       cudaFree(state->d_SampleBuffer);
+    if (state->d_DenoiseBuffer)      cudaFree(state->d_DenoiseBuffer);
     if (state->d_AccumulationBuffer) cudaFree(state->d_AccumulationBuffer);
     if (state->d_OutputImage)        cudaFree(state->d_OutputImage);
     if (state->d_RayDirections)      cudaFree(state->d_RayDirections);
 
     // Allocate new buffers
     cudaMalloc(&state->d_SampleBuffer,       state->pixelCount * sizeof(float4));
+    cudaMalloc(&state->d_DenoiseBuffer,      state->pixelCount * sizeof(float4));
     cudaMalloc(&state->d_AccumulationBuffer, state->pixelCount * sizeof(float4));
     cudaMalloc(&state->d_OutputImage, state->pixelCount * sizeof(uint32_t));
     cudaMalloc(&state->d_RayDirections, state->pixelCount * sizeof(float3));
@@ -272,6 +277,7 @@ void CUDARenderer_Render(
     PostProcessKernel<<<ppBlocks, ppThreads, 0, state->computeStream>>>(
         state->d_SampleBuffer,
         state->d_AccumulationBuffer,
+        state->d_DenoiseBuffer,
         state->d_OutputImage,
         frameIndex,
         state->pixelCount
@@ -297,6 +303,31 @@ void CUDARenderer_GetOutput(
 
     cudaMemcpy(hostOutput, state->d_OutputImage,
                byteSize, cudaMemcpyDeviceToHost);
+}
+
+void* CUDARenderer_GetDenoiseBuffer(CUDARenderState* state)
+{
+    if (!state || !state->initialized) return nullptr;
+    return state->d_DenoiseBuffer;
+}
+
+void CUDARenderer_ConvertDenoisedToRGBA(CUDARenderState* state, cudaStream_t stream)
+{
+    if (!state || !state->initialized || state->pixelCount == 0) return;
+
+    int threads = 256;
+    int blocks = (state->pixelCount + threads - 1) / threads;
+    ConvertToRGBAKernel<<<blocks, threads, 0, stream>>>(
+        (const float4*)state->d_DenoiseBuffer,
+        state->d_OutputImage,
+        state->pixelCount
+    );
+}
+
+void* CUDARenderer_GetComputeStream(CUDARenderState* state)
+{
+    if (!state) return nullptr;
+    return state->computeStream;
 }
 
 void CUDARenderer_SetSettings(

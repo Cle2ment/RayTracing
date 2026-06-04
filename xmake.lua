@@ -106,7 +106,7 @@ target("RayTracing")
 
     if is_plat("windows") then
         add_cxflags("/utf-8", "/EHsc")
-        add_defines("WL_PLATFORM_WINDOWS")
+        add_defines("WL_PLATFORM_WINDOWS", "NOMINMAX")
         add_links("opengl32", "gdi32")
     end
 
@@ -162,4 +162,43 @@ if ispc_found then
 
         add_includedirs("RayTracing/src")
         add_ldflags(path.absolute("RayTracing/src/PathTracer.ispc.obj"), {force = true})
+end
+
+-- ── OptiX Denoiser Support ──
+local optix_found = false
+local optix_include = nil
+
+-- Check OptiX_ROOT / OPTIX_PATH environment variables
+local optix_env = os.getenv("OptiX_ROOT") or os.getenv("OPTIX_PATH")
+if optix_env then
+    local inc = path.join(optix_env, "include")
+    if os.isdir(inc) then
+        optix_include = inc
+        optix_found = true
+    end
+end
+
+-- Fallback: scan ProgramData for OptiX SDK installations
+if not optix_found then
+    local base = "C:/ProgramData/NVIDIA Corporation"
+    if os.isdir(base) then
+        for _, p in ipairs(os.dirs(base .. "/*")) do
+            if p:find("OptiX SDK") then
+                local inc = path.join(p, "include")
+                if os.isdir(inc) then
+                    optix_include = inc
+                    optix_found = true
+                    break
+                end
+            end
+        end
+    end
+end
+
+if optix_found and cuda_found then
+    target("RayTracing")
+        add_defines("WL_OPTIX", "NOMINMAX")
+        add_files("RayTracing/src/OptiXDenoiser.cpp")
+        add_includedirs(optix_include)
+        add_links("cuda", "Advapi32")
 end
