@@ -190,7 +190,7 @@ void Renderer::OnResize(uint32_t width, uint32_t height)
 		if (m_InteropEnabled)
 		{
 			try { m_Interop = std::make_unique<VkCUDAInterop>(width, height); }
-			catch (...) { m_Interop.reset(); m_InteropEnabled = false; }
+		catch (...) { std::fprintf(stderr, "[Interop] Failed to create VkCUDAInterop on resize\n"); m_Interop.reset(); m_InteropEnabled = false; }
 			if (m_Interop)
 				CUDARenderer_SetOutputBuffer(m_CUDAState, m_Interop->GetCUDADevicePtr());
 		}
@@ -658,6 +658,7 @@ void Renderer::RenderGPU(const Scene& scene, const Camera& camera)
 			}
 			catch (...)
 			{
+				std::fprintf(stderr, "[Interop] Failed to create VkCUDAInterop on toggle\n");
 				m_Interop.reset();
 				m_InteropEnabled = false;
 				m_Settings.EnableInterop = false;

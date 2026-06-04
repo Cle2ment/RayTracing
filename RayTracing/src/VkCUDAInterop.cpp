@@ -18,7 +18,16 @@ VkCUDAInterop::VkCUDAInterop(uint32_t width, uint32_t height)
     : m_Width(width), m_Height(height), m_Size(width * height * sizeof(uint32_t))
 {
     CreateVulkanBuffer();
-    ExportToCUDA();
+    try {
+        ExportToCUDA();
+    } catch (...) {
+        // Clean up Vulkan resources if CUDA import fails
+        if (m_Memory) vkFreeMemory(Walnut::Application::GetDevice(), m_Memory, nullptr);
+        if (m_Buffer) vkDestroyBuffer(Walnut::Application::GetDevice(), m_Buffer, nullptr);
+        m_Memory = VK_NULL_HANDLE;
+        m_Buffer = VK_NULL_HANDLE;
+        throw;
+    }
 }
 
 VkCUDAInterop::~VkCUDAInterop()
