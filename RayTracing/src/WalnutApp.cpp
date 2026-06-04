@@ -74,6 +74,8 @@ public:
 			sphere.MaterialIndex = 1;
 			m_Scene.Spheres.push_back(sphere);
 		}
+
+		m_Scene.Version = 1;  // Ensure initial scene state triggers GPU upload
 	}
 
 	virtual void OnUpdate(const float ts) override
@@ -181,6 +183,7 @@ public:
 
 		if (changed)
 		{
+			m_Scene.Version++;
 			m_Renderer.ResetFrameIndex(); // Avoid old samples polluting the accumulation buffer
 			m_NeedsRender = true;
 		}

@@ -89,6 +89,7 @@ private:
 	std::vector<GPUPackedSphere>   m_GPUSpheres;
 	std::vector<GPUPackedMaterial> m_GPUMaterials;
 	std::vector<float3>            m_GPURayDirs;
+	uint32_t m_LastSceneVersion = UINT32_MAX;  // Force first upload
 #endif
 
 #ifdef WL_ISPC

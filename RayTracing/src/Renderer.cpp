@@ -504,9 +504,12 @@ void Renderer::RenderGPU(const Scene& scene, const Camera& camera)
 	const uint32_t height = m_FinalImage->GetHeight();
 	if (width == 0 || height == 0) return;
 
-	// Upload scene data every frame — ImGui modifies Scene directly through references,
-	// so the Renderer cannot reliably detect changes via a dirty flag
-	UploadSceneToGPU(scene);
+	// Upload scene data only when changed (tracked by scene version)
+	if (scene.Version != m_LastSceneVersion)
+	{
+		UploadSceneToGPU(scene);
+		m_LastSceneVersion = scene.Version;
+	}
 
 	// Upload camera position
 	const glm::vec3& camPos = camera.GetPosition();
