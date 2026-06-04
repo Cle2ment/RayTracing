@@ -29,7 +29,7 @@ A real-time interactive path tracer built with C++23 on the [Walnut](https://git
 |-----------|-----|------------|
 | Ray Generation | ISPC `foreach` or `std::execution::par` | CUDA kernel — one thread per pixel |
 | Ray-Sphere Intersection | Brute-force loop | `__device__` function |
-| Path Tracing (5 bounces) | Lambertian diffuse BRDF | Lambertian diffuse BRDF |
+| Path Tracing (5 bounces) | GGX Microfacet BRDF | GGX Microfacet BRDF |
 | Random Number Generation | PCG Hash | PCG Hash (`__device__`) |
 | Russian Roulette | After 3 bounces | After 3 bounces |
 | Display | Walnut::Image (Vulkan) | Walnut::Image (Vulkan) via D2H copy |
@@ -134,7 +134,9 @@ RayTracing/
 │   ├── CUDATypes.cuh           # GPU data structures
 │   ├── CUDARenderer.cuh        # GPU kernels + device functions
 │   ├── CUDARenderer.cu         # CUDA host wrappers (C linkage)
-│   └── CUDARenderer.h          # Host C++ interface + packing helpers
+│   ├── CUDARenderer.h          # Host C++ interface + packing helpers
+│   ├── VkCUDAInterop.h/cpp     # Vulkan-CUDA zero-copy memory sharing
+│   └── OptiXDenoiser.h/cpp     # OptiX AI denoiser integration
 ├── xmake.lua                   # Build config (CUDA + ISPC detection)
 ├── scripts/
 │   └── Setup.bat               # One-click build + solution generation
