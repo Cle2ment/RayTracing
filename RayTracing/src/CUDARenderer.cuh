@@ -313,33 +313,32 @@ __device__ inline float3 PerPixel(
             0.04f + (material.Albedo.z - 0.04f) * material.Metallic
         );
 
-        // ── Sample H from GGX NDF ──
-        float rn1 = RandomFloat(seed), rn2 = RandomFloat(seed);
-        float cosTheta = sqrtf((1.0f - rn1) / (1.0f + (a2 - 1.0f) * rn1));
-        float sinTheta = sqrtf(fmaxf(1.0f - cosTheta*cosTheta, 0.0f));
-        float phi = 2.0f * 3.14159265358979323846f * rn2;
-
+        // ── Sample H from GGX VNDF (visible normals — guarantees WoDotH > 0) ──
         float3 u_t, v_t, w_t;
         BuildONB(N, u_t, v_t, w_t);
-        float3 H = make_float3(
-            u_t.x*sinTheta*cosf(phi) + v_t.x*sinTheta*sinf(phi) + w_t.x*cosTheta,
-            u_t.y*sinTheta*cosf(phi) + v_t.y*sinTheta*sinf(phi) + w_t.y*cosTheta,
-            u_t.z*sinTheta*cosf(phi) + v_t.z*sinTheta*sinf(phi) + w_t.z*cosTheta
+        float3 localWo = make_float3(
+            u_t.x*w_o.x + u_t.y*w_o.y + u_t.z*w_o.z,
+            v_t.x*w_o.x + v_t.y*w_o.y + v_t.z*w_o.z,
+            w_t.x*w_o.x + w_t.y*w_o.y + w_t.z*w_o.z
         );
+        float3 localH = SampleGGX_VNDF(localWo, a, RandomFloat(seed), RandomFloat(seed));
+        float NdotH = fmaxf(localH.z, 0.001f);
+        float WoDotH = localWo.x*localH.x + localWo.y*localH.y + localWo.z*localH.z;
 
-        float NdotH = cosTheta;
-        float WoDotH = w_o.x*H.x + w_o.y*H.y + w_o.z*H.z;
-        // wi goes below surface — absorb this bounce
-        if (WoDotH <= 0.0f) break;
+        // Reflect in local frame: wi = 2*(wo·H)*H - wo
+        float3 localWi = make_float3(
+            2.0f * WoDotH * localH.x - localWo.x,
+            2.0f * WoDotH * localH.y - localWo.y,
+            2.0f * WoDotH * localH.z - localWo.z
+        );
+        float NdotL = fmaxf(localWi.z, 0.001f);
 
-        // Reflect: wi = 2*(wo·H)*H - wo  (both in world space)
+        // Transform wi back to world
         float3 wi = make_float3(
-            2.0f * WoDotH * H.x - w_o.x,
-            2.0f * WoDotH * H.y - w_o.y,
-            2.0f * WoDotH * H.z - w_o.z
+            u_t.x*localWi.x + v_t.x*localWi.y + w_t.x*localWi.z,
+            u_t.y*localWi.x + v_t.y*localWi.y + w_t.y*localWi.z,
+            u_t.z*localWi.x + v_t.z*localWi.y + w_t.z*localWi.z
         );
-        float NdotL = N.x*wi.x + N.y*wi.y + N.z*wi.z;
-        if (NdotL < 0.001f) NdotL = 0.001f;
 
         // ── Evaluate GGX BRDF ──
         float  D = a2 / (3.14159265358979323846f * (NdotH*NdotH*(a2-1.0f)+1.0f) * (NdotH*NdotH*(a2-1.0f)+1.0f));
