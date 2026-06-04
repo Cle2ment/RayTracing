@@ -126,8 +126,7 @@ if cuda_found then
         add_linkdirs(cuda_path .. "/lib/x64")
         add_links("cudart")
 
-        -- CUDA architecture targets (matching premake5 sm_75/86/89/120)
-        add_cugencodes("native")
+        -- CUDA architecture targets
         add_cugencodes("compute_75", "sm_75")
         add_cugencodes("compute_86", "sm_86")
         add_cugencodes("compute_89", "sm_89")
