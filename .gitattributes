@@ -1,0 +1,16 @@
+# ── Vendored ──
+Walnut/vendor/glm/**       linguist-vendored
+Walnut/vendor/GLFW/**      linguist-vendored
+Walnut/vendor/imgui/**     linguist-vendored
+Walnut/vendor/stb_image/** linguist-vendored
+Walnut/vendor/bin/**       linguist-vendored
+vendor/ispc/**             linguist-vendored
+
+# ── Docs ──
+screenshots/**  linguist-documentation
+docs/**         linguist-documentation
+.github/**      linguist-vendored
+
+# ── Misc ──
+*.embed binary
+.vscode/** linguist-vendored
