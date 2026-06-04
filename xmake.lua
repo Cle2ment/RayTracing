@@ -163,3 +163,42 @@ if ispc_found then
         add_includedirs("RayTracing/src")
         add_ldflags(path.absolute("RayTracing/src/PathTracer.ispc.obj"), {force = true})
 end
+
+-- ── OptiX Denoiser Support ──
+local optix_found = false
+local optix_include = nil
+
+-- Check OptiX_ROOT / OPTIX_PATH environment variables
+local optix_env = os.getenv("OptiX_ROOT") or os.getenv("OPTIX_PATH")
+if optix_env then
+    local inc = path.join(optix_env, "include")
+    if os.isdir(inc) then
+        optix_include = inc
+        optix_found = true
+    end
+end
+
+-- Fallback: scan ProgramData for OptiX SDK installations
+if not optix_found then
+    for _, p in ipairs(os.dirs("C:/ProgramData/NVIDIA Corporation/OptiX SDK *") or {}) do
+        local inc = path.join(p, "include")
+        if os.isdir(inc) then
+            optix_include = inc
+            optix_found = true
+            break
+        end
+    end
+end
+
+if optix_found and cuda_found then
+    target("RayTracing")
+        add_defines("WL_OPTIX")
+        add_files("RayTracing/src/OptiXDenoiser.cpp")
+        add_includedirs(optix_include)
+        add_links("cuda")  -- CUDA driver API (cuCtxGetCurrent, cuDeviceGet, etc.)
+    print("[OptiX] Denoiser enabled — SDK: " .. optix_include)
+elseif not optix_found then
+    print("[OptiX] SDK not found — denoiser disabled (set OptiX_ROOT env var)")
+else
+    print("[OptiX] CUDA not found — denoiser requires CUDA")
+end
