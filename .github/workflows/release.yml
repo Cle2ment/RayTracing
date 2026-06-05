@@ -1,10 +1,18 @@
 name: Release (CD)
 
 on:
-  workflow_run:
-    workflows: ["Build (CUDA + Vulkan)"]
-    types: [completed]
-    branches: [master]
+  workflow_call:
+    inputs:
+      build-run-id:
+        description: 'CI workflow run ID to download artifact from'
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      build-run-id:
+        description: 'CI workflow run ID to download artifact from'
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -12,7 +20,6 @@ permissions:
 jobs:
   release:
     name: Create GitHub Release
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: windows-2025-vs2026
 
     steps:
@@ -28,7 +35,7 @@ jobs:
         with:
           workflow: build.yml
           name: RayTracing-Release
-          run_id: ${{ github.event.workflow_run.id }}
+          run_id: ${{ inputs.build-run-id }}
           path: ./package
 
       # ── Generate version tag: vYY.MM.DD.N ──

@@ -172,3 +172,14 @@ jobs:
           name: RayTracing-Release
           path: ${{ steps.locate.outputs.build_dir_normalized }}/
           if-no-files-found: error
+
+  # ── CD: trigger release workflow after successful build on master ──
+  release:
+    name: Trigger CD Release
+    needs: build
+    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+    uses: ./.github/workflows/release.yml
+    permissions:
+      contents: write
+    with:
+      build-run-id: ${{ github.run_id }}
