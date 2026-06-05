@@ -66,21 +66,47 @@ jobs:
           xmake f -m release
           xmake build
 
+      # ── Locate actual xmake output directory (Release) ──
+      - name: Locate Build Output (Release)
+        if: matrix.configuration == 'Release'
+        id: locate
+        shell: pwsh
+        run: |
+          # Search for the built exe, filtering out Debug variants
+          $exe = Get-ChildItem -Path . -Recurse -Filter "RayTracing.exe" `
+            | Where-Object { $_.FullName -notmatch '\\(Debug|debug)\\' } `
+            | Select-Object -First 1
+
+          if (-not $exe) {
+            Write-Error "RayTracing.exe not found after Release build!"
+            exit 1
+          }
+
+          $buildDir = $exe.DirectoryName
+          # Normalize slashes for GitHub Actions path compatibility
+          $buildDirNormalized = $buildDir -replace '\\', '/'
+          Write-Host "Build output: $buildDir"
+          echo "build_dir=$buildDir" >> $env:GITHUB_OUTPUT
+          echo "build_dir_normalized=$buildDirNormalized" >> $env:GITHUB_OUTPUT
+
       # ── Bundle runtime DLLs into build output (Release only) ──
       - name: Collect Runtime DLLs (Release)
         if: matrix.configuration == 'Release'
         shell: pwsh
         run: |
           $ErrorActionPreference = "Continue"
-          $buildDir = "bin\Release-windows-x86_64\RayTracing"
+          $buildDir = "${{ steps.locate.outputs.build_dir }}"
 
-          # Vulkan runtime
-          $vulkanDll = "$env:VULKAN_SDK\Bin\vulkan-1.dll"
-          if (Test-Path $vulkanDll) {
-            Copy-Item $vulkanDll $buildDir\
-            Write-Host "Bundled: vulkan-1.dll"
+          # Vulkan runtime — search SDK tree (CI), then System32 (driver fallback)
+          $vulkanDll = Get-ChildItem "$env:VULKAN_SDK" -Recurse -Filter "vulkan-1.dll" -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $vulkanDll) {
+            $vulkanDll = Get-ChildItem "C:\Windows\System32" -Filter "vulkan-1.dll" -ErrorAction SilentlyContinue | Select-Object -First 1
+          }
+          if ($vulkanDll) {
+            Copy-Item $vulkanDll.FullName $buildDir\
+            Write-Host "Bundled: vulkan-1.dll (from $($vulkanDll.DirectoryName))"
           } else {
-            Write-Warning "vulkan-1.dll not found at $vulkanDll"
+            Write-Warning "vulkan-1.dll not found — user will need Vulkan runtime installed"
           }
 
           # CUDA runtime (only if WL_CUDA was enabled)
@@ -116,26 +142,27 @@ jobs:
           $wlIspc     = Test-Path "vendor\ispc\bin\ispc.exe"
           $commitSha  = (git rev-parse --short HEAD) ?? "unknown"
 
+          $metaPath = Join-Path $buildDir "build-info.txt"
           @" 
           build_date=$buildDate
           wl_cuda=$wlCuda
           wl_optix=$wlOptix
           wl_ispc=$wlIspc
           commit_sha=$commitSha
-          "@.Trim() | Out-File "$buildDir\build-info.txt" -Encoding UTF8
+          "@.Trim() | Out-File $metaPath -Encoding UTF8
           Write-Host "build-info.txt written: CUDA=$wlCuda, OptiX=$wlOptix, ISPC=$wlIspc"
 
       - name: Verify Build Output
         shell: pwsh
         run: |
           $config = '${{ matrix.configuration }}'
-          $buildDir = "bin\$config-windows-x86_64\RayTracing"
+          $buildDir = if ($config -eq 'Release') { "${{ steps.locate.outputs.build_dir }}" } else { "bin\$config-windows-x86_64\RayTracing" }
           if (Test-Path $buildDir) {
-            Write-Host "Build output directory exists: $buildDir"
+            Write-Host "Build output: $buildDir"
             Get-ChildItem $buildDir -Recurse | ForEach-Object { Write-Host $_.FullName }
           } else {
             Write-Host "Searching for build output..."
-            Get-ChildItem bin -Recurse -Filter "*.exe" | ForEach-Object { Write-Host $_.FullName }
+            Get-ChildItem . -Recurse -Filter "*.exe" | ForEach-Object { Write-Host $_.FullName }
           }
 
       - name: Upload Build Artifacts
@@ -143,5 +170,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: RayTracing-Release
-          path: bin/Release-windows-x86_64/RayTracing/
-          if-no-files-found: warn
+          path: ${{ steps.locate.outputs.build_dir_normalized }}/
+          if-no-files-found: error
