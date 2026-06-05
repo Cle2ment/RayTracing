@@ -114,3 +114,44 @@ runs:
         } else {
           Write-Host "OptiX SDK not detected — WL_OPTIX will be disabled"
         }
+
+    # ── ISPC (CPU SIMD compiler, best-effort) ──
+    # xmake.lua checks vendor/ispc/bin/ispc.exe → defines WL_ISPC.
+    # Single self-contained ~15MB exe from Intel ISPC GitHub releases.
+    - name: Cache ISPC
+      id: cache-ispc
+      uses: actions/cache@v4
+      with:
+        path: C:\ispc
+        key: ispc-1.30.0-windows-v1
+
+    - name: Download ISPC
+      if: steps.cache-ispc.outputs.cache-hit != 'true'
+      shell: pwsh
+      run: |
+        try {
+          $url = "https://github.com/ispc/ispc/releases/download/v1.30.0/ispc-v1.30.0-windows.zip"
+          Invoke-WebRequest $url -OutFile "$env:RUNNER_TEMP\ispc.zip"
+          Expand-Archive "$env:RUNNER_TEMP\ispc.zip" -DestinationPath "$env:RUNNER_TEMP\ispc-extract"
+          $ispcExe = Get-ChildItem "$env:RUNNER_TEMP\ispc-extract" -Recurse -Filter "ispc.exe" | Select-Object -First 1
+          if ($ispcExe) {
+            New-Item -ItemType Directory -Path "C:\ispc\bin" -Force | Out-Null
+            Copy-Item $ispcExe.FullName "C:\ispc\bin\ispc.exe"
+            Write-Host "ISPC 1.30.0 cached"
+          } else {
+            Write-Warning "ispc.exe not found in downloaded archive"
+          }
+        } catch {
+          Write-Host "ISPC download failed — building without CPU SIMD"
+        }
+
+    - name: Link ISPC to vendor
+      shell: pwsh
+      run: |
+        if (Test-Path "C:\ispc\bin\ispc.exe") {
+          New-Item -ItemType Directory -Path "vendor\ispc\bin" -Force | Out-Null
+          Copy-Item "C:\ispc\bin\ispc.exe" "vendor\ispc\bin\ispc.exe" -Force
+          Write-Host "ISPC linked to vendor/ispc/bin/ispc.exe — WL_ISPC will be enabled"
+        } else {
+          Write-Host "ISPC not available — building without CPU SIMD"
+        }
