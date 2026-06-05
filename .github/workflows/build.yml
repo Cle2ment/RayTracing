@@ -36,62 +36,9 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
-      # ── CUDA: manual caching to avoid ~3GB download every run ──
-      - name: Cache CUDA Toolkit
-        id: cache-cuda
-        uses: actions/cache@v4
-        with:
-          path: C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.3
-          key: cuda-13.3.0-windows-2025-vs2026-v1
-
-      # ── CUDA: install only on cache miss ──
-      # Uses mjun0812/setup-cuda (not Jimver/cuda-toolkit) because Jimver
-      # caps at 13.2, while setup-cuda resolves versions dynamically from
-      # NVIDIA's CDN, supporting 13.3+.
-      - name: Install CUDA Toolkit
-        if: steps.cache-cuda.outputs.cache-hit != 'true'
-        uses: mjun0812/setup-cuda@v1
-        with:
-          version: '13.3'
-          method: 'auto'
-
-      # ── CUDA: set environment even on cache hit ──
-      - name: Set CUDA Environment
-        shell: pwsh
-        run: |
-          $cudaPath = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.3"
-          echo "CUDA_PATH=$cudaPath" >> $env:GITHUB_ENV
-          echo "$cudaPath\bin" >> $env:GITHUB_PATH
-
-      - name: Verify CUDA Installation
-        shell: pwsh
-        run: |
-          nvcc --version 2>&1 || Write-Warning "nvcc not found — building CPU-only"
-
-      # ── Vulkan SDK ──
-      - name: Cache Vulkan SDK
-        id: cache-vulkan
-        uses: actions/cache@v4
-        with:
-          path: C:\VulkanSDK\1.4.309.0
-          key: vulkan-1.4.309.0-windows-2025-vs2026-v1
-
-      - name: Install Vulkan SDK
-        if: steps.cache-vulkan.outputs.cache-hit != 'true'
-        shell: pwsh
-        run: |
-          $vulkanVersion = "1.4.309.0"
-          $installerUrl = "https://sdk.lunarg.com/sdk/download/$vulkanVersion/windows/VulkanSDK-$vulkanVersion-Installer.exe"
-          $installerPath = "$env:RUNNER_TEMP\VulkanSDK.exe"
-          Invoke-WebRequest -Uri $installerUrl -OutFile $installerPath
-          Start-Process -FilePath $installerPath -ArgumentList "--accept-licenses --default-answer --confirm-command install" -Wait -NoNewWindow
-          echo "VULKAN_SDK=C:\VulkanSDK\$vulkanVersion" >> $env:GITHUB_ENV
-
-      - name: Set Vulkan Environment
-        if: steps.cache-vulkan.outputs.cache-hit == 'true'
-        shell: pwsh
-        run: |
-          echo "VULKAN_SDK=C:\VulkanSDK\1.4.309.0" >> $env:GITHUB_ENV
+      # ── Build Dependencies: CUDA 13.3 + Vulkan 1.4 + OptiX (best-effort) ──
+      - name: Setup Build Dependencies
+        uses: ./.github/actions/setup-deps
 
       # ── xmake ──
       - name: Setup xmake
@@ -118,6 +65,51 @@ jobs:
         run: |
           xmake f -m release
           xmake build
+
+      # ── Bundle runtime DLLs into build output (Release only) ──
+      - name: Collect Runtime DLLs (Release)
+        if: matrix.configuration == 'Release'
+        shell: pwsh
+        run: |
+          $buildDir = "bin\Release-windows-x86_64\RayTracing"
+
+          # Vulkan runtime
+          Copy-Item "$env:VULKAN_SDK\Bin\vulkan-1.dll" $buildDir\
+          Write-Host "Bundled: vulkan-1.dll"
+
+          # CUDA runtime (only if WL_CUDA was enabled)
+          $cudaBin = "$env:CUDA_PATH\bin"
+          if (Test-Path $cudaBin) {
+            Get-ChildItem "$cudaBin\cudart64_*.dll" | ForEach-Object {
+              Copy-Item $_.FullName $buildDir\
+              Write-Host "Bundled: $($_.Name)"
+            }
+          }
+
+          # MSVC runtime (vcruntime + msvcp)
+          $vsPath = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+          $redistDirs = Get-ChildItem "$vsPath\VC\Redist\MSVC" -Directory | Sort-Object Name -Descending
+          $redistDir = $redistDirs | Select-Object -First 1
+          $crtDir = "$($redistDir.FullName)\x64\Microsoft.VC143.CRT"
+          Copy-Item "$crtDir\vcruntime140.dll" $buildDir\
+          Copy-Item "$crtDir\msvcp140.dll" $buildDir\
+          Write-Host "Bundled: vcruntime140.dll, msvcp140.dll"
+
+          # ── Build metadata (for CD verification) ──
+          $buildDate  = (Get-Date).ToString("yyyy-MM-ddTHH:mm:ssZ")
+          $wlCuda     = [bool](Test-Path env:CUDA_PATH)
+          $wlOptix    = Test-Path "C:\OptiXSDK\include\optix.h"
+          $wlIspc     = Test-Path "vendor\ispc\bin\ispc.exe"
+          $commitSha  = (git rev-parse --short HEAD) ?? "unknown"
+
+          @" 
+          build_date=$buildDate
+          wl_cuda=$wlCuda
+          wl_optix=$wlOptix
+          wl_ispc=$wlIspc
+          commit_sha=$commitSha
+          "@.Trim() | Out-File "$buildDir\build-info.txt" -Encoding UTF8
+          Write-Host "build-info.txt written: CUDA=$wlCuda, OptiX=$wlOptix, ISPC=$wlIspc"
 
       - name: Verify Build Output
         shell: pwsh

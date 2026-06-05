@@ -1,0 +1,109 @@
+name: Setup Build Dependencies
+description: >
+  Cache + install CUDA 13.3, Vulkan SDK 1.4.309.0, OptiX SDK 9.1.
+  Sets CUDA_PATH, VULKAN_SDK, OptiX_ROOT environment variables.
+  OptiX download is best-effort — build continues without denoiser if unavailable.
+
+inputs:
+  setup-optix:
+    description: Whether to attempt OptiX SDK setup
+    required: false
+    default: 'true'
+
+runs:
+  using: composite
+  steps:
+    # ── CUDA Toolkit ──
+    - name: Cache CUDA Toolkit
+      id: cache-cuda
+      uses: actions/cache@v4
+      with:
+        path: C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.3
+        key: cuda-13.3.0-windows-2025-vs2026-v1
+
+    - name: Install CUDA Toolkit
+      if: steps.cache-cuda.outputs.cache-hit != 'true'
+      uses: mjun0812/setup-cuda@v1
+      with:
+        version: '13.3'
+        method: 'auto'
+
+    - name: Set CUDA Environment
+      shell: pwsh
+      run: |
+        $cudaPath = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.3"
+        echo "CUDA_PATH=$cudaPath" >> $env:GITHUB_ENV
+        echo "$cudaPath\bin" >> $env:GITHUB_PATH
+
+    - name: Verify CUDA Installation
+      shell: pwsh
+      run: |
+        nvcc --version 2>&1 || Write-Warning "nvcc not found — building CPU-only"
+
+    # ── Vulkan SDK ──
+    - name: Cache Vulkan SDK
+      id: cache-vulkan
+      uses: actions/cache@v4
+      with:
+        path: C:\VulkanSDK\1.4.309.0
+        key: vulkan-1.4.309.0-windows-2025-vs2026-v1
+
+    - name: Install Vulkan SDK
+      if: steps.cache-vulkan.outputs.cache-hit != 'true'
+      shell: pwsh
+      run: |
+        $vulkanVersion = "1.4.309.0"
+        $installerUrl = "https://sdk.lunarg.com/sdk/download/$vulkanVersion/windows/VulkanSDK-$vulkanVersion-Installer.exe"
+        $installerPath = "$env:RUNNER_TEMP\VulkanSDK.exe"
+        Invoke-WebRequest -Uri $installerUrl -OutFile $installerPath
+        Start-Process -FilePath $installerPath -ArgumentList "--accept-licenses --default-answer --confirm-command install" -Wait -NoNewWindow
+        echo "VULKAN_SDK=C:\VulkanSDK\$vulkanVersion" >> $env:GITHUB_ENV
+
+    - name: Set Vulkan Environment
+      if: steps.cache-vulkan.outputs.cache-hit == 'true'
+      shell: pwsh
+      run: |
+        echo "VULKAN_SDK=C:\VulkanSDK\1.4.309.0" >> $env:GITHUB_ENV
+
+    # ── OptiX Denoiser SDK (best-effort) ──
+    # Minimal install: only include/ + lib/ needed for WL_OPTIX build.
+    # Runtime nvoptix.dll ships with NVIDIA driver — not bundled.
+    #
+    # To enable OptiX in CI (one-time setup):
+    # 1. Download OptiX SDK 9.1 from https://developer.nvidia.com/designworks/optix/downloads
+    # 2. Zip only the include/ and lib/ directories → optix-sdk-minimal.zip
+    # 3. Create a GitHub Release with tag "ci-deps" (mark as pre-release)
+    # 4. Upload optix-sdk-minimal.zip to that release
+    # 5. Re-run this workflow — cache auto-populates thereafter
+    - name: Cache OptiX SDK
+      if: inputs.setup-optix == 'true'
+      id: cache-optix
+      uses: actions/cache@v4
+      with:
+        path: C:\OptiXSDK
+        key: optix-sdk-9.1.0-windows-2025-vs2026-v1
+
+    - name: Download OptiX SDK
+      if: inputs.setup-optix == 'true' && steps.cache-optix.outputs.cache-hit != 'true'
+      shell: pwsh
+      run: |
+        try {
+          gh release download ci-deps --pattern "optix-sdk-minimal.zip" --dir "$env:RUNNER_TEMP" --clobber
+          Expand-Archive "$env:RUNNER_TEMP\optix-sdk-minimal.zip" -DestinationPath "C:\OptiXSDK"
+          Write-Host "OptiX SDK downloaded from ci-deps release"
+        } catch {
+          Write-Host "OptiX SDK not available — build will proceed without denoiser"
+        }
+      env:
+        GH_TOKEN: ${{ github.token }}
+
+    - name: Set OptiX Environment
+      if: inputs.setup-optix == 'true'
+      shell: pwsh
+      run: |
+        if (Test-Path "C:\OptiXSDK\include\optix.h") {
+          echo "OptiX_ROOT=C:\OptiXSDK" >> $env:GITHUB_ENV
+          Write-Host "OptiX SDK detected — WL_OPTIX will be enabled"
+        } else {
+          Write-Host "OptiX SDK not detected — WL_OPTIX will be disabled"
+        }

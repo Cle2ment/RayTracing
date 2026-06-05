@@ -1,0 +1,152 @@
+name: Release (CD)
+
+on:
+  workflow_run:
+    workflows: ["Build (CUDA + Vulkan)"]
+    types: [completed]
+    branches: [master]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Create GitHub Release
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: windows-2025-vs2026
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      # ── Download build artifact from the triggering CI run ──
+      - name: Download Build Artifact
+        uses: dawidd6/action-download-artifact@v3
+        with:
+          workflow: build.yml
+          name: RayTracing-Release
+          run_id: ${{ github.event.workflow_run.id }}
+          path: ./package
+
+      # ── Generate version tag: vYY.MM.DD.N ──
+      - name: Generate Version
+        id: version
+        shell: pwsh
+        run: |
+          $date = Get-Date -Format "yy.MM.dd"
+
+          # Find highest existing sequence number for today
+          $existingTags = git tag -l "v$date.*"
+          $maxSeq = 0
+          foreach ($tag in $existingTags) {
+            if ($tag -match "^v\d{2}\.\d{2}\.\d{2}\.(\d+)$") {
+              $seq = [int]$Matches[1]
+              if ($seq -gt $maxSeq) { $maxSeq = $seq }
+            }
+          }
+
+          $version = "v$date.$($maxSeq + 1)"
+          echo "version=$version" >> $env:GITHUB_OUTPUT
+          Write-Host "Generated version: $version"
+
+      # ── Verify artifact + read build metadata from CI ──
+      - name: Verify & Read Build Metadata
+        id: metadata
+        shell: pwsh
+        run: |
+          Write-Host "=== Package contents ==="
+          Get-ChildItem ./package -Recurse | ForEach-Object {
+            $size = "{0:N0} KB" -f ($_.Length / 1KB)
+            Write-Host "  $($_.FullName.Replace((Resolve-Path ./package).Path + '\', '')) ($size)"
+          }
+
+          if (-not (Test-Path "./package/RayTracing.exe")) {
+            Write-Error "RayTracing.exe not found in package!"
+            exit 1
+          }
+
+          # Read build metadata (written by CI during DLL collection)
+          if (Test-Path "./package/build-info.txt") {
+            $info = Get-Content "./package/build-info.txt" -Raw
+            Write-Host "`n=== Build Metadata ==="
+            Write-Host $info.Trim()
+
+            # Parse key=value lines
+            $meta = @{}
+            $info -split "`n" | ForEach-Object {
+              if ($_ -match '^(\w+)=(.+)$') {
+                $meta[$Matches[1]] = $Matches[2].Trim()
+              }
+            }
+
+            $wlCuda  = $meta['wl_cuda']  -eq 'True'
+            $wlOptix = $meta['wl_optix'] -eq 'True'
+            $wlIspc  = $meta['wl_ispc'] -eq 'True'
+            $commit  = $meta['commit_sha']
+            $buildDate = $meta['build_date']
+
+            echo "wl_cuda=$wlCuda"      >> $env:GITHUB_OUTPUT
+            echo "wl_optix=$wlOptix"    >> $env:GITHUB_OUTPUT
+            echo "wl_ispc=$wlIspc"      >> $env:GITHUB_OUTPUT
+            echo "commit_sha=$commit"   >> $env:GITHUB_OUTPUT
+            echo "build_date=$buildDate" >> $env:GITHUB_OUTPUT
+
+            Write-Host "`nParsed: CUDA=$wlCuda | OptiX=$wlOptix | ISPC=$wlIspc | commit=$commit"
+          } else {
+            Write-Warning "build-info.txt not found — release will lack build metadata"
+            echo "wl_cuda=true"    >> $env:GITHUB_OUTPUT
+            echo "wl_optix=false"  >> $env:GITHUB_OUTPUT
+            echo "wl_ispc=false"   >> $env:GITHUB_OUTPUT
+            echo "commit_sha=unknown" >> $env:GITHUB_OUTPUT
+            echo "build_date=unknown" >> $env:GITHUB_OUTPUT
+          }
+
+      # ── Package as ZIP ──
+      - name: Package Release ZIP
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.version }}"
+          $zipName = "RayTracing-$version-win64.zip"
+          Compress-Archive -Path ./package/* -DestinationPath $zipName
+          echo "zip_name=$zipName" >> $env:GITHUB_ENV
+          Write-Host "Created: $zipName"
+
+      # ── Create GitHub Release with feature-aware body ──
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ steps.version.outputs.version }}
+          tag_name: ${{ steps.version.outputs.version }}
+          files: ${{ env.zip_name }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          body: |
+            ## 🔧 Build Features
+
+            | Feature | Status |
+            |---------|--------|
+            | CUDA GPU Acceleration | ${{ steps.metadata.outputs.wl_cuda == 'True' && '✅ Enabled' || '❌ Disabled' }} |
+            | OptiX AI Denoiser | ${{ steps.metadata.outputs.wl_optix == 'True' && '✅ Enabled' || '❌ Disabled' }} |
+            | ISPC SIMD (CPU) | ${{ steps.metadata.outputs.wl_ispc == 'True' && '✅ Enabled' || '❌ Disabled' }} |
+
+            **Commit:** `${{ steps.metadata.outputs.commit_sha }}`
+            **Built:** ${{ steps.metadata.outputs.build_date }}
+
+            ### 📦 Included in ZIP
+            - `RayTracing.exe`
+            - Runtime DLLs: `vulkan-1.dll`, `vcruntime140.dll`, `msvcp140.dll`
+            - CUDA runtime DLLs (if CUDA enabled at build time)
+
+            ### ▶️ How to Run
+            1. Download `RayTracing-${{ steps.version.outputs.version }}-win64.zip`
+            2. Extract to any folder
+            3. Run `RayTracing.exe`
+
+            ### ⚠️ Prerequisites
+            - **Vulkan runtime** (bundled)
+            - **CUDA acceleration** requires NVIDIA GPU driver with CUDA 12.0+
+            - **Denoiser** requires NVIDIA driver 545+ (includes `nvoptix.dll`)
