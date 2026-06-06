@@ -11,60 +11,60 @@ if not vulkan_sdk then
     raise("VULKAN_SDK not set. Install Vulkan SDK 1.4+ and set VULKAN_SDK env var.")
 end
 
--- ── Walnut (static library) ──
-target("Walnut")
+-- ── Peanut (static library) ──
+target("Peanut")
     set_kind("static")
     set_languages("c++17")
 
-    -- Walnut framework source (headers auto-tracked, only .cpp needed)
-    add_files("Walnut/Walnut/src/**.cpp")
+    -- Peanut framework source (headers auto-tracked, only .cpp needed)
+    add_files("Peanut/Peanut/src/**.cpp")
 
-    -- ImGui core + Vulkan/GLFW backends (only what Walnut uses)
+    -- ImGui core + Vulkan/GLFW backends (only what Peanut uses)
     add_files(
-        "Walnut/vendor/imgui/imgui.cpp",
-        "Walnut/vendor/imgui/imgui_draw.cpp",
-        "Walnut/vendor/imgui/imgui_tables.cpp",
-        "Walnut/vendor/imgui/imgui_widgets.cpp",
-        "Walnut/vendor/imgui/imgui_demo.cpp",
-        "Walnut/vendor/imgui/backends/imgui_impl_vulkan.cpp",
-        "Walnut/vendor/imgui/backends/imgui_impl_glfw.cpp",
+        "Peanut/vendor/imgui/imgui.cpp",
+        "Peanut/vendor/imgui/imgui_draw.cpp",
+        "Peanut/vendor/imgui/imgui_tables.cpp",
+        "Peanut/vendor/imgui/imgui_widgets.cpp",
+        "Peanut/vendor/imgui/imgui_demo.cpp",
+        "Peanut/vendor/imgui/backends/imgui_impl_vulkan.cpp",
+        "Peanut/vendor/imgui/backends/imgui_impl_glfw.cpp",
         {public = false}
     )
 
     -- GLFW (Windows only — skip Posix/X11/Wayland/macOS sources)
     add_files(
-        "Walnut/vendor/GLFW/src/context.c",
-        "Walnut/vendor/GLFW/src/init.c",
-        "Walnut/vendor/GLFW/src/input.c",
-        "Walnut/vendor/GLFW/src/monitor.c",
-        "Walnut/vendor/GLFW/src/platform.c",
-        "Walnut/vendor/GLFW/src/vulkan.c",
-        "Walnut/vendor/GLFW/src/window.c",
-        "Walnut/vendor/GLFW/src/egl_context.c",
-        "Walnut/vendor/GLFW/src/osmesa_context.c",
-        "Walnut/vendor/GLFW/src/null_init.c",
-        "Walnut/vendor/GLFW/src/null_joystick.c",
-        "Walnut/vendor/GLFW/src/null_monitor.c",
-        "Walnut/vendor/GLFW/src/null_window.c",
-        "Walnut/vendor/GLFW/src/win32_init.c",
-        "Walnut/vendor/GLFW/src/win32_joystick.c",
-        "Walnut/vendor/GLFW/src/win32_module.c",
-        "Walnut/vendor/GLFW/src/win32_monitor.c",
-        "Walnut/vendor/GLFW/src/win32_thread.c",
-        "Walnut/vendor/GLFW/src/win32_time.c",
-        "Walnut/vendor/GLFW/src/win32_window.c",
-        "Walnut/vendor/GLFW/src/wgl_context.c",
+        "Peanut/vendor/GLFW/src/context.c",
+        "Peanut/vendor/GLFW/src/init.c",
+        "Peanut/vendor/GLFW/src/input.c",
+        "Peanut/vendor/GLFW/src/monitor.c",
+        "Peanut/vendor/GLFW/src/platform.c",
+        "Peanut/vendor/GLFW/src/vulkan.c",
+        "Peanut/vendor/GLFW/src/window.c",
+        "Peanut/vendor/GLFW/src/egl_context.c",
+        "Peanut/vendor/GLFW/src/osmesa_context.c",
+        "Peanut/vendor/GLFW/src/null_init.c",
+        "Peanut/vendor/GLFW/src/null_joystick.c",
+        "Peanut/vendor/GLFW/src/null_monitor.c",
+        "Peanut/vendor/GLFW/src/null_window.c",
+        "Peanut/vendor/GLFW/src/win32_init.c",
+        "Peanut/vendor/GLFW/src/win32_joystick.c",
+        "Peanut/vendor/GLFW/src/win32_module.c",
+        "Peanut/vendor/GLFW/src/win32_monitor.c",
+        "Peanut/vendor/GLFW/src/win32_thread.c",
+        "Peanut/vendor/GLFW/src/win32_time.c",
+        "Peanut/vendor/GLFW/src/win32_window.c",
+        "Peanut/vendor/GLFW/src/wgl_context.c",
         {public = false}
     )
 
     -- Include paths
     add_includedirs(
-        "Walnut/Walnut/src",
-        "Walnut/vendor/imgui",
-        "Walnut/vendor/imgui/backends",
-        "Walnut/vendor/glfw/include",
-        "Walnut/vendor/stb_image",
-        "Walnut/vendor/glm",
+        "Peanut/Peanut/src",
+        "Peanut/vendor/imgui",
+        "Peanut/vendor/imgui/backends",
+        "Peanut/vendor/glfw/include",
+        "Peanut/vendor/stb_image",
+        "Peanut/vendor/glm",
         vulkan_sdk .. "/Include"
     )
 
@@ -74,13 +74,13 @@ target("Walnut")
 
     -- Windows
     if is_plat("windows") then
-        add_defines("WL_PLATFORM_WINDOWS", "_GLFW_WIN32", "_CRT_SECURE_NO_WARNINGS")
+        add_defines("PN_PLATFORM_WINDOWS", "_GLFW_WIN32", "_CRT_SECURE_NO_WARNINGS")
         add_links("Dwmapi", "opengl32", "gdi32", "user32", "kernel32", "shell32")
     end
 
     -- Config defines (matching premake5)
-    add_defines("WL_DEBUG", { debug = true })
-    add_defines("WL_RELEASE", { release = true })
+    add_defines("PN_DEBUG", { debug = true })
+    add_defines("PN_RELEASE", { release = true })
 
 -- ── RayTracing (executable) ──
 target("RayTracing")
@@ -91,28 +91,28 @@ target("RayTracing")
     -- Source files
     add_files("RayTracing/src/**.cpp")
 
-    -- Depend on Walnut
-    add_deps("Walnut")
+    -- Depend on Peanut
+    add_deps("Peanut")
 
-    -- Inherit Walnut's include paths
+    -- Inherit Peanut's include paths
     add_includedirs(
-        "Walnut/vendor/imgui",
-        "Walnut/vendor/imgui/backends",
-        "Walnut/vendor/glfw/include",
-        "Walnut/vendor/glm",
-        "Walnut/Walnut/src",
+        "Peanut/vendor/imgui",
+        "Peanut/vendor/imgui/backends",
+        "Peanut/vendor/glfw/include",
+        "Peanut/vendor/glm",
+        "Peanut/Peanut/src",
         vulkan_sdk .. "/Include"
     )
 
     if is_plat("windows") then
         add_cxflags("/utf-8", "/EHsc")
-        add_defines("WL_PLATFORM_WINDOWS", "NOMINMAX")
+        add_defines("PN_PLATFORM_WINDOWS", "NOMINMAX")
         add_links("opengl32", "gdi32")
     end
 
     -- Config defines
-    add_defines("WL_DEBUG", { debug = true })
-    add_defines("WL_RELEASE", { release = true })
+    add_defines("PN_DEBUG", { debug = true })
+    add_defines("PN_RELEASE", { release = true })
 
 -- ── CUDA Support ──
 local cuda_path = os.getenv("CUDA_PATH")
@@ -120,7 +120,7 @@ local cuda_found = cuda_path and os.isdir(cuda_path)
 
 if cuda_found then
     target("RayTracing")
-        add_defines("WL_CUDA")
+        add_defines("PN_CUDA")
         add_files("RayTracing/src/CUDARenderer.cu")
         add_includedirs(cuda_path .. "/include", "RayTracing/src")
         add_linkdirs(cuda_path .. "/lib/x64")
@@ -145,7 +145,7 @@ local ispc_found = os.isfile(ispc_path)
 
 if ispc_found then
     target("RayTracing")
-        add_defines("WL_ISPC")
+        add_defines("PN_ISPC")
 
         before_build(function (target)
             local ispc = path.absolute("vendor/ispc/bin/ispc.exe")
@@ -197,7 +197,7 @@ end
 
 if optix_found and cuda_found then
     target("RayTracing")
-        add_defines("WL_OPTIX", "NOMINMAX")
+        add_defines("PN_OPTIX", "NOMINMAX")
         add_files("RayTracing/src/OptiXDenoiser.cpp")
         add_includedirs(optix_include)
         add_links("cuda", "Advapi32")
