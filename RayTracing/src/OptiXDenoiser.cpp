@@ -1,4 +1,4 @@
-#ifdef WL_OPTIX
+#ifdef PN_OPTIX
 
 #include "OptiXDenoiser.h"
 
@@ -187,4 +187,4 @@ void OptiXDenoiser::Cleanup()
     m_valid = false;
 }
 
-#endif // WL_OPTIX
+#endif // PN_OPTIX

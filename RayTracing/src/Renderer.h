@@ -1,16 +1,16 @@
 #pragma once
 
-#include "Walnut/Image.h"
+#include "Peanut/Image.h"
 
 #include "Camera.h"
 #include "Ray.h"
 #include "Scene.h"
 
-#ifdef WL_OPTIX
+#ifdef PN_OPTIX
 #include "OptiXDenoiser.h"
 #endif
 
-#ifdef WL_CUDA
+#ifdef PN_CUDA
 #include "VkCUDAInterop.h"  // Must precede CUDARenderer.h — defines CUDART_VERSION so float3 guard works
 #include "CUDARenderer.h"
 #endif
@@ -26,10 +26,10 @@ public:
 	{
 		bool Accumulate = true;
 		bool SlowRandom = true;
-#ifdef WL_OPTIX
+#ifdef PN_OPTIX
 		bool EnableDenoising = true;
 #endif
-#ifdef WL_CUDA
+#ifdef PN_CUDA
 		bool EnableInterop = false;
 #endif
 	};
@@ -45,7 +45,7 @@ public:
 	void OnResize(uint32_t width, uint32_t height);
 	void Render(const Scene& scene, const Camera& camera);
 
-	[[nodiscard]] std::shared_ptr<Walnut::Image> GetFinalImage() const { return m_FinalImage; }
+	[[nodiscard]] std::shared_ptr<Peanut::Image> GetFinalImage() const { return m_FinalImage; }
 
 	void ResetFrameIndex() { m_FrameIndex = 1; }
 	void MarkRayDirsDirty() { m_RayDirsDirty = true; }
@@ -62,7 +62,7 @@ private:
 		int ObjectIndex;
 	};
 
-#ifdef WL_CUDA
+#ifdef PN_CUDA
 	// GPU rendering path
 	void RenderGPU(const Scene& scene, const Camera& camera);
 	void UploadSceneToGPU(const Scene& scene);
@@ -80,7 +80,7 @@ private:
 #endif
 
 private:
-	std::shared_ptr<Walnut::Image> m_FinalImage;
+	std::shared_ptr<Peanut::Image> m_FinalImage;
 
 	Settings m_Settings;
 
@@ -95,7 +95,7 @@ private:
 	uint32_t m_FrameIndex = 1;
 	bool m_RayDirsDirty = true;  // Tracks if ray directions need re-upload to GPU
 
-#ifdef WL_CUDA
+#ifdef PN_CUDA
 	CUDARenderState* m_CUDAState = nullptr;
 	std::unique_ptr<VkCUDAInterop> m_Interop;
 	bool m_InteropEnabled = false;
@@ -103,12 +103,12 @@ private:
 	std::vector<GPUPackedMaterial> m_GPUMaterials;
 	std::vector<float3>            m_GPURayDirs;
 	uint32_t m_LastSceneVersion = UINT32_MAX;  // Force first upload
-#ifdef WL_OPTIX
+#ifdef PN_OPTIX
 	OptiXDenoiser m_Denoiser;
 #endif
 #endif
 
-#ifdef WL_ISPC
+#ifdef PN_ISPC
 	// ISPC SoA packing buffers (reused across frames to avoid reallocation)
 	std::vector<float> m_ISPCRayDirX, m_ISPCRayDirY, m_ISPCRayDirZ;
 	std::vector<float> m_ISCPSphPosX, m_ISCPSphPosY, m_ISCPSphPosZ;

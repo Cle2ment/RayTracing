@@ -1,12 +1,12 @@
 #include "VkCUDAInterop.h"
-#include "Walnut/Application.h"
+#include "Peanut/Application.h"
 #include <stdexcept>
 #include <cstring>
 
 static uint32_t FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties)
 {
     VkPhysicalDeviceMemoryProperties memProps;
-    vkGetPhysicalDeviceMemoryProperties(Walnut::Application::GetPhysicalDevice(), &memProps);
+    vkGetPhysicalDeviceMemoryProperties(Peanut::Application::GetPhysicalDevice(), &memProps);
     for (uint32_t i = 0; i < memProps.memoryTypeCount; i++)
         if ((typeFilter & (1 << i)) &&
             (memProps.memoryTypes[i].propertyFlags & properties) == properties)
@@ -22,8 +22,8 @@ VkCUDAInterop::VkCUDAInterop(uint32_t width, uint32_t height)
         ExportToCUDA();
     } catch (...) {
         // Clean up Vulkan resources if CUDA import fails
-        if (m_Memory) vkFreeMemory(Walnut::Application::GetDevice(), m_Memory, nullptr);
-        if (m_Buffer) vkDestroyBuffer(Walnut::Application::GetDevice(), m_Buffer, nullptr);
+        if (m_Memory) vkFreeMemory(Peanut::Application::GetDevice(), m_Memory, nullptr);
+        if (m_Buffer) vkDestroyBuffer(Peanut::Application::GetDevice(), m_Buffer, nullptr);
         m_Memory = VK_NULL_HANDLE;
         m_Buffer = VK_NULL_HANDLE;
         throw;
@@ -32,7 +32,7 @@ VkCUDAInterop::VkCUDAInterop(uint32_t width, uint32_t height)
 
 VkCUDAInterop::~VkCUDAInterop()
 {
-    VkDevice device = Walnut::Application::GetDevice();
+    VkDevice device = Peanut::Application::GetDevice();
     if (m_CUDAExtMem) cudaDestroyExternalMemory(m_CUDAExtMem);
     if (m_Memory) vkFreeMemory(device, m_Memory, nullptr);
     if (m_Buffer) vkDestroyBuffer(device, m_Buffer, nullptr);
@@ -40,7 +40,7 @@ VkCUDAInterop::~VkCUDAInterop()
 
 void VkCUDAInterop::CreateVulkanBuffer()
 {
-    VkDevice device = Walnut::Application::GetDevice();
+    VkDevice device = Peanut::Application::GetDevice();
 
     VkExternalMemoryBufferCreateInfo extInfo = {};
     extInfo.sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO;
@@ -84,7 +84,7 @@ void VkCUDAInterop::CreateVulkanBuffer()
 
 void VkCUDAInterop::ExportToCUDA()
 {
-    VkDevice device = Walnut::Application::GetDevice();
+    VkDevice device = Peanut::Application::GetDevice();
 
     auto vkGetMemoryWin32HandleKHR = (PFN_vkGetMemoryWin32HandleKHR)
         vkGetDeviceProcAddr(device, "vkGetMemoryWin32HandleKHR");

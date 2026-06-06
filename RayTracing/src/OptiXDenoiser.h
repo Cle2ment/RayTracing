@@ -4,11 +4,11 @@
 
 // ──────────────────────────────────────────────
 // OptiX AI Denoiser — RAII Wrapper
-// Requires OptiX SDK 7.0+ and WL_OPTIX define.
-// When WL_OPTIX is not defined, stub methods are no-ops.
+// Requires OptiX SDK 7.0+ and PN_OPTIX define.
+// When PN_OPTIX is not defined, stub methods are no-ops.
 // ──────────────────────────────────────────────
 
-#ifdef WL_OPTIX
+#ifdef PN_OPTIX
 
 #include <cuda_runtime.h>
 #include <optix.h>
@@ -57,7 +57,7 @@ private:
     bool               m_valid  = false;
 };
 
-#else  // !WL_OPTIX — Stub (types resolved via void* to avoid CUDA dependency)
+#else  // !PN_OPTIX — Stub (types resolved via void* to avoid CUDA dependency)
 
 class OptiXDenoiser
 {
@@ -68,4 +68,4 @@ public:
     bool IsValid() const { return false; }
 };
 
-#endif // WL_OPTIX
+#endif // PN_OPTIX

@@ -1,9 +1,9 @@
 #include "Renderer.h"
 
-#include "Walnut/Random.h"
+#include "Peanut/Random.h"
 
-#ifdef WL_CUDA
-#include "Walnut/Application.h"
+#ifdef PN_CUDA
+#include "Peanut/Application.h"
 #endif
 
 #include <cstring>
@@ -11,11 +11,11 @@
 #include <limits>
 #include <ranges>
 
-#ifdef WL_ISPC
+#ifdef PN_ISPC
 #include "PathTracer_ispc.h"
 #endif
 
-#ifndef WL_CUDA
+#ifndef PN_CUDA
 
 // ──────────────────────────────────────────────
 // CPU-Only Rendering Path
@@ -105,7 +105,7 @@ namespace Utils
 	}
 }
 
-#endif // !WL_CUDA
+#endif // !PN_CUDA
 
 // ──────────────────────────────────────────────
 // Shared: Constructor / Destructor
@@ -113,14 +113,14 @@ namespace Utils
 
 Renderer::Renderer()
 {
-#ifdef WL_CUDA
+#ifdef PN_CUDA
 	m_CUDAState = CUDARenderer_Create();
 #endif
 }
 
 Renderer::~Renderer()
 {
-#ifdef WL_CUDA
+#ifdef PN_CUDA
 	if (m_CUDAState)
 	{
 		CUDARenderer_Destroy(m_CUDAState);
@@ -147,17 +147,17 @@ void Renderer::OnResize(uint32_t width, uint32_t height)
 	}
 	else
 	{
-		m_FinalImage = std::make_shared<Walnut::Image>(
+		m_FinalImage = std::make_shared<Peanut::Image>(
 			width,
 			height,
-			Walnut::ImageFormat::RGBA
+			Peanut::ImageFormat::RGBA
 		);
 	}
 
 	delete[] m_ImageData;
 	m_ImageData = new uint32_t[width * height];
 
-#ifndef WL_CUDA
+#ifndef PN_CUDA
 	delete[] m_AccumulationData;
 	m_AccumulationData = new glm::vec4[width * height];
 
@@ -170,7 +170,7 @@ void Renderer::OnResize(uint32_t width, uint32_t height)
 		m_ImageVerticalIterator[i] = i;
 #endif
 
-#ifdef WL_CUDA
+#ifdef PN_CUDA
 	// Initialize CUDA on first resize
 	static bool cudaInitialized = false;
 	if (!cudaInitialized && m_CUDAState)
@@ -210,7 +210,7 @@ void Renderer::Render(const Scene& scene, const Camera& camera)
 	m_ActiveScene = &scene;
 	m_ActiveCamera = &camera;
 
-#ifdef WL_CUDA
+#ifdef PN_CUDA
 	RenderGPU(scene, camera);
 #else
 	// ── CPU Rendering Path ──
@@ -221,7 +221,7 @@ void Renderer::Render(const Scene& scene, const Camera& camera)
 			m_FinalImage->GetWidth() * m_FinalImage->GetHeight() * sizeof(glm::vec4)
 		);
 
-#ifdef WL_ISPC
+#ifdef PN_ISPC
 	// ═══════════════════════════════════════════════
 	// ISPC-Accelerated Path (SIMD vectorized)
 	// Replaces the inner pixel loop with ISPC foreach
@@ -359,14 +359,14 @@ void Renderer::Render(const Scene& scene, const Camera& camera)
 		}
 	}
 #endif
-#endif // WL_ISPC
-#endif // !WL_CUDA
+#endif // PN_ISPC
+#endif // !PN_CUDA
 
-#ifdef WL_CUDA
+#ifdef PN_CUDA
 	if (m_InteropEnabled && m_Interop)
 	{
-		// Interop path: CUDA wrote to Vulkan buffer, copy to Walnut's VkImage
-		VkCommandBuffer cmd = Walnut::Application::GetCommandBuffer(true);
+		// Interop path: CUDA wrote to Vulkan buffer, copy to Peanut's VkImage
+		VkCommandBuffer cmd = Peanut::Application::GetCommandBuffer(true);
 		VkImage dstImage = m_FinalImage->GetImage();
 
 		// Buffer barrier: external (CUDA) write → Vulkan transfer read
@@ -415,7 +415,7 @@ void Renderer::Render(const Scene& scene, const Camera& camera)
 		vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT,
 			VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &postBarrier);
 
-		Walnut::Application::FlushCommandBuffer(cmd);
+		Peanut::Application::FlushCommandBuffer(cmd);
 	}
 	else
 #endif
@@ -433,7 +433,7 @@ void Renderer::Render(const Scene& scene, const Camera& camera)
 // CPU-Only: PerPixel / TraceRay / ClosestHit / Miss
 // ──────────────────────────────────────────────
 
-#ifndef WL_CUDA
+#ifndef PN_CUDA
 
 glm::vec4 Renderer::PerPixel(uint32_t x, uint32_t y) const
 {
@@ -589,13 +589,13 @@ Renderer::HitPayLoad Renderer::Miss(const Ray& ray)
 	return payload;
 }
 
-#endif // !WL_CUDA
+#endif // !PN_CUDA
 
 // ──────────────────────────────────────────────
 // CUDA GPU Rendering Path
 // ──────────────────────────────────────────────
 
-#ifdef WL_CUDA
+#ifdef PN_CUDA
 
 void Renderer::UploadSceneToGPU(const Scene& scene)
 {
@@ -712,7 +712,7 @@ void Renderer::RenderGPU(const Scene& scene, const Camera& camera)
 	// Launch CUDA render kernel
 	CUDARenderer_Render(m_CUDAState, m_FrameIndex);
 
-#ifdef WL_OPTIX
+#ifdef PN_OPTIX
 	// Denoise pass: run OptiX on the averaged HDR buffer, then re-convert to RGBA
 	if (m_Settings.EnableDenoising)
 	{
@@ -744,4 +744,4 @@ void Renderer::RenderGPU(const Scene& scene, const Camera& camera)
 	}
 }
 
-#endif // WL_CUDA
+#endif // PN_CUDA

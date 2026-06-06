@@ -4,9 +4,9 @@
 #include <glm/gtc/quaternion.hpp>
 #include <glm/gtx/quaternion.hpp>
 
-#include "Walnut/Input/Input.h"
+#include "Peanut/Input/Input.h"
 
-using namespace Walnut;
+using namespace Peanut;
 
 Camera::Camera(const float verticalFOV, const float nearClip, const float farClip)
 	: m_VerticalFOV(verticalFOV), m_NearClip(nearClip), m_FarClip(farClip)
