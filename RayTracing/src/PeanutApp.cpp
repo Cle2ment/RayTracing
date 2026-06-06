@@ -1,8 +1,8 @@
-#include "Walnut/Application.h"
-#include "Walnut/EntryPoint.h"
+#include "Peanut/Application.h"
+#include "Peanut/EntryPoint.h"
 
-#include "Walnut/Image.h"
-#include "Walnut/Timer.h"
+#include "Peanut/Image.h"
+#include "Peanut/Timer.h"
 
 #include "Renderer.h"
 #include "Camera.h"
@@ -10,9 +10,9 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <limits>
 
-using namespace Walnut;
+using namespace Peanut;
 
-class ExampleLayer final : public Walnut::Layer
+class ExampleLayer final : public Peanut::Layer
 {
 public:
 	ExampleLayer()
@@ -100,11 +100,11 @@ public:
 			m_NeedsRender = true;
 		if (ImGui::Checkbox("Slow Random", &m_Renderer.GetSettings().SlowRandom))
 			m_NeedsRender = true;
-#ifdef WL_OPTIX
+#ifdef PN_OPTIX
 		if (ImGui::Checkbox("Denoise", &m_Renderer.GetSettings().EnableDenoising))
 			m_NeedsRender = true;
 #endif
-#ifdef WL_CUDA
+#ifdef PN_CUDA
 		if (ImGui::Checkbox("Vulkan-CUDA Interop", &m_Renderer.GetSettings().EnableInterop))
 			m_NeedsRender = true;
 #endif
@@ -252,12 +252,12 @@ private:
 	bool m_NeedsRender = true;
 };
 
-Walnut::Application* Walnut::CreateApplication(int argc, char** argv)
+Peanut::Application* Peanut::CreateApplication(int argc, char** argv)
 {
-	Walnut::ApplicationSpecification spec;
+	Peanut::ApplicationSpecification spec;
 	spec.Name = "Ray Tracing";
 
-	auto app = new Walnut::Application(spec);
+	auto app = new Peanut::Application(spec);
 	app->PushLayer<ExampleLayer>();
 			app->SetMenubarCallback([app] ()
 	{
