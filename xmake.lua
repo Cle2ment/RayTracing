@@ -78,7 +78,7 @@ target("Peanut")
         add_links("Dwmapi", "opengl32", "gdi32", "user32", "kernel32", "shell32")
     end
 
-    -- Config defines (matching premake5)
+    -- Config defines
     add_defines("PN_DEBUG", { debug = true })
     add_defines("PN_RELEASE", { release = true })
 
