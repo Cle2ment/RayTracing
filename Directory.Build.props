@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>
+        $(MSBuildThisFileDirectory)Peanut\Peanut\src;
+        $(MSBuildThisFileDirectory)Peanut\vendor\imgui;
+        $(MSBuildThisFileDirectory)Peanut\vendor\imgui\backends;
+        $(MSBuildThisFileDirectory)Peanut\vendor\GLFW\include;
+        $(MSBuildThisFileDirectory)Peanut\vendor\glm;
+        $(MSBuildThisFileDirectory)Peanut\vendor\stb_image;
+        $(MSBuildThisFileDirectory)RayTracing\src;
+        %(AdditionalIncludeDirectories)
+      </AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>
+        PN_PLATFORM_WINDOWS;
+        PN_CUDA;
+        PN_ISPC;
+        PN_OPTIX;
+        NOMINMAX;
+        IMGUI_DEFINE_MATH_OPERATORS;
+        _CRT_SECURE_NO_WARNINGS;
+        %(PreprocessorDefinitions)
+      </PreprocessorDefinitions>
+      <LanguageStandard>stdcpp23</LanguageStandard>
+    </ClCompile>
+  </ItemDefinitionGroup>
+</Project>
