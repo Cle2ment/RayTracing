@@ -1,4 +1,4 @@
-﻿# Ray Tracing: Accelerated RT Demo
+# Ray Tracing: Accelerated RT Demo
 
 [English](/README.md) | [中文](/docs/README_zh-CN.md) | [Français](/docs/README_fr-FR.md)
 
@@ -15,7 +15,7 @@
 
 ## Overview
 
-A real-time interactive path tracer built with C++23 on the [Walnut](https://github.com/TheCherno/Walnut) application framework. **GPU-accelerated via NVIDIA CUDA** and **CPU-accelerated via Intel ISPC** — the entire path tracing pipeline runs on the GPU when CUDA is available, with CPU SIMD fallback via ISPC (AVX2/AVX-512).
+A real-time interactive path tracer built with C++23 on the [Peanut](https://github.com/Cle2ment/Peanut) application framework. **GPU-accelerated via NVIDIA CUDA** and **CPU-accelerated via Intel ISPC** — the entire path tracing pipeline runs on the GPU when CUDA is available, with CPU SIMD fallback via ISPC (AVX2/AVX-512).
 
 ### Rendering Backends
 
@@ -34,7 +34,7 @@ A real-time interactive path tracer built with C++23 on the [Walnut](https://git
 | Path Tracing (5 bounces) | GGX Microfacet BRDF | GGX Microfacet BRDF |
 | Random Number Generation | PCG Hash | PCG Hash (`__device__`) |
 | Russian Roulette | After 3 bounces | After 3 bounces |
-| Display | Walnut::Image (Vulkan) | Walnut::Image (Vulkan) via D2H copy |
+| Display | Peanut::Image (Vulkan) | Peanut::Image (Vulkan) via D2H copy |
 
 **GPU Kernel Layout**: 16×16 thread blocks, one CUDA thread per pixel.
 
@@ -75,9 +75,9 @@ scripts\Setup.bat
 ```
 
 This single command handles everything:
-1. Checks Walnut submodule — auto-initializes if missing
+1. Checks Peanut submodule — auto-initializes if missing
 2. Configures xmake (`xmake f -m release`)
-3. Builds all targets (`xmake build`) — Walnut.lib + RayTracing.exe
+3. Builds all targets (`xmake build`) — Peanut.lib + RayTracing.exe
 4. Generates Visual Studio solution (`xmake project -k vsxmake`)
 5. Converts `.sln` → `.slnx` via `dotnet sln migrate`
 
@@ -127,7 +127,7 @@ Open `vsxmake2026\RayTracing.slnx` in Visual Studio, set RayTracing as startup p
 ```
 RayTracing/
 ├── RayTracing/src/             # Application source
-│   ├── WalnutApp.cpp           # Entry point, ImGui UI, scene setup
+│   ├── PeanutApp.cpp           # Entry point, ImGui UI, scene setup
 │   ├── Renderer.h/cpp          # Renderer (CPU/GPU/ISPC dispatch)
 │   ├── Camera.h/cpp            # FPS camera, ray direction pre-computation
 │   ├── Ray.h                   # Ray struct
@@ -142,8 +142,8 @@ RayTracing/
 ├── xmake.lua                   # Build config (CUDA + ISPC detection)
 ├── scripts/
 │   └── Setup.bat               # One-click build + solution generation
-├── Walnut/                     # Git submodule — DO NOT modify directly
-│   ├── Walnut/src/             # Walnut framework
+├── Peanut/                     # Git submodule — DO NOT modify directly
+│   ├── Peanut/src/             # Peanut framework
 │   ├── vendor/glfw/            # GLFW windowing
 │   ├── vendor/imgui/           # ImGui UI library
 │   └── vendor/glm/             # GLM math library
@@ -170,12 +170,12 @@ RayTracing/
 
 | Symptom | Cause | Solution |
 |---------|-------|----------|
-| `Walnut\Walnut\src\...` not found | Submodule not initialized | `git submodule update --init --recursive` |
+| `Peanut\Peanut\src\...` not found | Submodule not initialized | `git submodule update --init --recursive` |
 | `.vcxproj` not found in VS | `vsxmake2026\RayTracing.slnx` is stale | Re-run `scripts\Setup.bat` or `xmake project -k vsxmake` then `dotnet sln vsxmake2026\RayTracing.sln migrate` |
 | Viewport is black | CUDA architecture mismatch | Check GPU supports `sm_XX` in `xmake.lua` |
 | `no kernel image is available` | nvcc not targeting your GPU | Add matching `add_cugencodes("compute_XX", "sm_XX")` in `xmake.lua` |
 | `CUDA_PATH` not set / `.cu` not compiled | Environment variable missing | Set `CUDA_PATH` in System Environment Variables, restart terminal |
-| `cannot match add_files("Walnut\Walnut\src\**.cpp")` | `git submodule update --init` not run | See first row above |
+| `cannot match add_files("Peanut\Peanut\src\**.cpp")` | `git submodule update --init` not run | See first row above |
 | ISPC not found (no SIMD) | ISPC not in `vendor/ispc/` | `Setup.bat` auto-downloads it; re-run if needed |
 | `dotnet sln migrate` fails | .NET SDK not installed | Install [.NET SDK](https://dotnet.microsoft.com/) or open `vsxmake2026\RayTracing.sln` directly |
 

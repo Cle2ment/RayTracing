@@ -3,8 +3,8 @@ pushd %~dp0..
 echo [Setup] Working: %CD%
 
 :: Check submodule
-if not exist Walnut\Walnut\src\Walnut\Application.cpp (
-    echo [Setup] Walnut submodule not found, running git submodule update --init...
+if not exist Peanut\Peanut\src\Peanut\Application.cpp (
+    echo [Setup] Peanut submodule not found, running git submodule update --init...
     git submodule update --init --recursive
     if errorlevel 1 (pause & exit /b 1)
 )

@@ -15,7 +15,7 @@
 
 ## 概述
 
-基于 [Walnut](https://github.com/TheCherno/Walnut) 应用框架，使用 C++23 构建的实时交互式路径追踪器。**通过 NVIDIA CUDA 实现 GPU 加速**，**通过 Intel ISPC 实现 CPU 加速**——当 CUDA 可用时，整个路径追踪管线在 GPU 上运行；否则通过 ISPC（AVX2/AVX-512）提供 CPU SIMD 回退。
+基于 [Peanut](https://github.com/Cle2ment/Peanut) 应用框架，使用 C++23 构建的实时交互式路径追踪器。**通过 NVIDIA CUDA 实现 GPU 加速**，**通过 Intel ISPC 实现 CPU 加速**——当 CUDA 可用时，整个路径追踪管线在 GPU 上运行；否则通过 ISPC（AVX2/AVX-512）提供 CPU SIMD 回退。
 
 ### 渲染后端
 
@@ -34,7 +34,7 @@
 | 路径追踪（5 次反弹） | GGX 微表面 BRDF | GGX 微表面 BRDF |
 | 随机数生成 | PCG 哈希 | PCG 哈希（`__device__`） |
 | 俄罗斯轮盘赌 | 3 次反弹后 | 3 次反弹后 |
-| 显示 | Walnut::Image（Vulkan） | Walnut::Image（Vulkan）通过 D2H 拷贝 |
+| 显示 | Peanut::Image（Vulkan） | Peanut::Image（Vulkan）通过 D2H 拷贝 |
 
 **GPU 内核布局**：16×16 线程块，每个像素一个 CUDA 线程。
 
@@ -75,9 +75,9 @@ scripts\Setup.bat
 ```
 
 该命令一步完成所有操作：
-1. 检查 Walnut 子模块——若缺失则自动初始化
+1. 检查 Peanut 子模块——若缺失则自动初始化
 2. 配置 xmake（`xmake f -m release`）
-3. 构建所有目标（`xmake build`）—— Walnut.lib + RayTracing.exe
+3. 构建所有目标（`xmake build`）—— Peanut.lib + RayTracing.exe
 4. 生成 Visual Studio 解决方案（`xmake project -k vsxmake`）
 5. 通过 `dotnet sln migrate` 将 `.sln` 转换为 `.slnx`
 
@@ -127,7 +127,7 @@ dotnet sln vsxmake2026\RayTracing.sln migrate
 ```
 RayTracing/
 ├── RayTracing/src/             # 应用程序源代码
-│   ├── WalnutApp.cpp           # 入口点、ImGui UI、场景设置
+│   ├── PeanutApp.cpp           # 入口点、ImGui UI、场景设置
 │   ├── Renderer.h/cpp          # 渲染器（CPU/GPU/ISPC 分发）
 │   ├── Camera.h/cpp            # FPS 相机、光线方向预计算
 │   ├── Ray.h                   # 光线结构体
@@ -142,8 +142,8 @@ RayTracing/
 ├── xmake.lua                   # 构建配置（CUDA + ISPC 检测）
 ├── scripts/
 │   └── Setup.bat               # 一键构建 + 解决方案生成
-├── Walnut/                     # Git 子模块——请勿直接修改
-│   ├── Walnut/src/             # Walnut 框架
+├── Peanut/                     # Git 子模块——请勿直接修改
+│   ├── Peanut/src/             # Peanut 框架
 │   ├── vendor/glfw/            # GLFW 窗口管理
 │   ├── vendor/imgui/           # ImGui UI 库
 │   └── vendor/glm/             # GLM 数学库
@@ -170,12 +170,12 @@ RayTracing/
 
 | 症状 | 原因 | 解决方案 |
 |------|------|----------|
-| `Walnut\Walnut\src\...` 未找到 | 子模块未初始化 | `git submodule update --init --recursive` |
+| `Peanut\Peanut\src\...` 未找到 | 子模块未初始化 | `git submodule update --init --recursive` |
 | VS 中找不到 `.vcxproj` | `vsxmake2026\RayTracing.slnx` 过期 | 重新运行 `scripts\Setup.bat` 或依次执行 `xmake project -k vsxmake` 然后 `dotnet sln vsxmake2026\RayTracing.sln migrate` |
 | 视口为黑色 | CUDA 架构不匹配 | 检查 `xmake.lua` 中 GPU 是否支持 `sm_XX` |
 | `no kernel image is available` | nvcc 未针对你的 GPU | 在 `xmake.lua` 中添加匹配的 `add_cugencodes("compute_XX", "sm_XX")` |
 | `CUDA_PATH` 未设置 / `.cu` 未编译 | 缺少环境变量 | 在系统环境变量中设置 `CUDA_PATH`，重启终端 |
-| `cannot match add_files("Walnut\Walnut\src\**.cpp")` | 未执行 `git submodule update --init` | 见上表第一行 |
+| `cannot match add_files("Peanut\Peanut\src\**.cpp")` | 未执行 `git submodule update --init` | 见上表第一行 |
 | 找不到 ISPC（无 SIMD） | ISPC 未在 `vendor/ispc/` 目录 | `Setup.bat` 会自动下载；如有必要重新运行 |
 | `dotnet sln migrate` 失败 | 未安装 .NET SDK | 安装 [.NET SDK](https://dotnet.microsoft.com/) 或直接打开 `vsxmake2026\RayTracing.sln` |
 

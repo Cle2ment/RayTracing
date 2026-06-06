@@ -6,10 +6,10 @@
 - Compile with MSVC + NVCC via xmake
 
 ## CRITICAL Rules
-1. **NEVER modify Walnut library files** — extend via `ExampleLayer` subclass only
+1. **NEVER modify Peanut library files** — extend via `ExampleLayer` subclass only
 2. **NEVER change `GPUPacked*` struct layout** (`CUDARenderer.h:97-117`) without updating `GPUMaterial`/`GPUSphere` in `CUDATypes.cuh:16-38` — memory layouts must match exactly
 3. **NEVER suppress CUDA errors** — always check `cudaMalloc`/`cudaMemcpy`/`cudaStreamCreate` return values
-4. **NEVER use `--remote` on `git submodule update`** — vendor deps pinned by Walnut
+4. **NEVER use `--remote` on `git submodule update`** — vendor deps pinned by Peanut
 5. **NEVER create/destroy VkCUDAInterop during CUDA kernel execution** — set up before render, destroy after sync
 6. **NEVER assume scene data is synced to GPU** — increment `Scene::Version` on any scene change
 
@@ -21,7 +21,7 @@ xmake run RayTracing                   # Run
 ```
 
 ## GPU/CPU Paths
-- `#ifdef WL_CUDA` gates all CUDA code; `#ifndef WL_CUDA` is CPU-only
+- `#ifdef PN_CUDA` gates all CUDA code; `#ifndef PN_CUDA` is CPU-only
 - Scene→GPU upload: `Renderer::UploadSceneToGPU()` (version-tracked, skipped when unchanged)
 - Output: interop path → `vkCmdCopyBufferToImage` (zero-copy); legacy → D2H + SetData
 - GGX BRDF replaces Lambertian on all three paths (CUDA, CPU, ISPC)

@@ -15,7 +15,7 @@
 
 ## Aperçu
 
-Un path tracer interactif en temps réel construit avec C++23 sur le framework d'application [Walnut](https://github.com/TheCherno/Walnut). **Accéléré par GPU NVIDIA CUDA** et **accéléré par CPU Intel ISPC** — l'ensemble du pipeline de path tracing s'exécute sur le GPU lorsque CUDA est disponible, avec un repli CPU SIMD via ISPC (AVX2/AVX-512).
+Un path tracer interactif en temps réel construit avec C++23 sur le framework d'application [Peanut](https://github.com/Cle2ment/Peanut). **Accéléré par GPU NVIDIA CUDA** et **accéléré par CPU Intel ISPC** — l'ensemble du pipeline de path tracing s'exécute sur le GPU lorsque CUDA est disponible, avec un repli CPU SIMD via ISPC (AVX2/AVX-512).
 
 ### Backends de rendu
 
@@ -34,7 +34,7 @@ Un path tracer interactif en temps réel construit avec C++23 sur le framework d
 | Path tracing (5 rebonds) | BRDF de microfacette GGX | BRDF de microfacette GGX |
 | Génération de nombres aléatoires | Hachage PCG | Hachage PCG (`__device__`) |
 | Roulette russe | Après 3 rebonds | Après 3 rebonds |
-| Affichage | Walnut::Image (Vulkan) | Walnut::Image (Vulkan) via copie D2H |
+| Affichage | Peanut::Image (Vulkan) | Peanut::Image (Vulkan) via copie D2H |
 
 **Disposition du noyau GPU** : blocs de threads 16×16, un thread CUDA par pixel.
 
