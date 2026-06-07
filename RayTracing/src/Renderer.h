@@ -31,6 +31,7 @@ public:
 #endif
 #ifdef PN_CUDA
 		bool EnableInterop = false;
+		bool cudaError = false;
 #endif
 	};
 
@@ -90,9 +91,7 @@ private:
 	const Camera* m_ActiveCamera = nullptr;
 
 	std::vector<uint32_t>  m_ImageData;
-	#ifndef PN_CUDA
-	std::vector<glm::vec4> m_AccumulationData;
-	#endif
+	std::vector<glm::vec4> m_AccumulationData;  // Always present for CPU fallback when GPU errors
 
 	uint32_t m_FrameIndex = 1;
 	bool m_RayDirsDirty = true;  // Tracks if ray directions need re-upload to GPU
