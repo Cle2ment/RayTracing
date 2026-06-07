@@ -481,7 +481,8 @@ glm::vec4 Renderer::PerPixel(uint32_t x, uint32_t y) const
 		// Russian roulette: probabilistically terminate low-contribution paths (after 3 guaranteed bounces)
 		if (i > 2)
 		{
-			const float p = glm::max(contribution.r, glm::max(contribution.g, contribution.b));
+			// Use luminance (BT.709) for survival probability: fairer than max(channel)
+		const float p = 0.2126f * contribution.r + 0.7152f * contribution.g + 0.0722f * contribution.b;
 			if (p < 0.001f || (p < 1.0f && Utils::RandomFloat(seed) > p))
 				break;
 			contribution /= p;

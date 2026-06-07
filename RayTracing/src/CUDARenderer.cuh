@@ -281,7 +281,8 @@ __device__ inline float3 PerPixel(
         // Russian roulette: terminate low-contribution paths after 3 bounces
         if (i > 2)
         {
-            float p = fmaxf(contribution.x, fmaxf(contribution.y, contribution.z));
+            // Use luminance (BT.709) for survival probability: fairer than max(channel)
+            float p = 0.2126f * contribution.x + 0.7152f * contribution.y + 0.0722f * contribution.z;
             if (p < 0.001f || (p < 1.0f && RandomFloat(seed) > p))
                 break;
             float invP = 1.0f / p;

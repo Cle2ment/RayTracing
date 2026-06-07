@@ -256,10 +256,9 @@ export void ISPCRenderPixels(
             lightB += contribB * emB;
 
             // ── Russian roulette (after 3 guaranteed bounces) ──
+            // Use luminance (BT.709) for survival probability: fairer than max(channel)
             if (bounce > 2) {
-                varying float p = contribR;
-                if (contribG > p) p = contribG;
-                if (contribB > p) p = contribB;
+                varying float p = 0.2126f * contribR + 0.7152f * contribG + 0.0722f * contribB;
 
                 if (p < 0.001f)
                     break;
