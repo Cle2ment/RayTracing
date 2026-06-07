@@ -5,6 +5,9 @@ set_xmakever("2.7.5")
 
 add_rules("mode.debug", "mode.release", "mode.releasedbg")
 
+-- ── External packages ──
+add_requires("glm 1.0.3")
+
 -- ── Vulkan SDK ──
 local vulkan_sdk = os.getenv("VULKAN_SDK")
 if not vulkan_sdk then
@@ -15,6 +18,7 @@ end
 target("Peanut")
     set_kind("static")
     set_languages("c++17")
+    add_packages("glm")
 
     -- Peanut framework source (headers auto-tracked, only .cpp needed)
     add_files("Peanut/Peanut/src/**.cpp")
@@ -64,7 +68,6 @@ target("Peanut")
         "Peanut/vendor/imgui/backends",
         "Peanut/vendor/glfw/include",
         "Peanut/vendor/stb_image",
-        "Peanut/vendor/glm",
         vulkan_sdk .. "/Include"
     )
 
@@ -95,11 +98,11 @@ target("RayTracing")
     add_deps("Peanut")
 
     -- Inherit Peanut's include paths
+    add_packages("glm")
     add_includedirs(
         "Peanut/vendor/imgui",
         "Peanut/vendor/imgui/backends",
         "Peanut/vendor/glfw/include",
-        "Peanut/vendor/glm",
         "Peanut/Peanut/src",
         vulkan_sdk .. "/Include"
     )
