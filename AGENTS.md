@@ -2,7 +2,7 @@
 
 **Generated:** 2026-05-28
 **Updated:**   2026-06-07 (Walnut→Peanut rename, ImGui v1.91+, GLFW 3.4, glm 1.0.3, stb latest, xrepo migration, VS IntelliSense fix)
-**Commit:** `94cc3e8`
+**Commit:** `29a7b39`
 **Branch:** `master`
 
 ## OVERVIEW
@@ -187,7 +187,7 @@ dotnet sln vsxmake2026\RayTracing.sln migrate
 ### Build System
 - **100% xmake** — all premake5.lua files deleted. Peanut has standalone `xmake.lua` for independent builds.
 - **xrepo packages** (feat/xmake-packages branch, PR #11): glm 1.0.3, stb 2026.03.18, glfw 3.4 via `add_requires()`. ImGui stays as vendor submodule (xrepo lacks docking branch).
-- **VS IntelliSense**: `Directory.Build.props` at project root auto-discovered by MSBuild. Contains all include paths, `PN_*` defines, `IMGUI_DEFINE_MATH_OPERATORS`, C++23 standard.
+- **VS IntelliSense**: `Directory.Build.props` at project root auto-discovered by MSBuild. Contains only `GLFW_INCLUDE_NONE` and `IMGUI_DEFINE_MATH_OPERATORS` defines, plus C++23 standard. Include paths delegated to xmake-generated vcxproj `XmakeIncludeDirs`.
 - **`set_default(true)`** on `target("RayTracing")` sets it as VS startup project in `.sln` (lost in `.slnx` migration).
 
 ### Dependencies
