@@ -1,28 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project>
+  <!-- ──────────────────────────────────────────────
+       VS IntelliSense Configuration for RayTracing
+       Auto-discovered by MSBuild from project root.
+
+       Only fills gaps the xmake-generated vcxproj
+       doesn't cover. Include paths are provided by
+       the vcxproj's XmakeIncludeDirs.
+
+       Regenerate vcxproj after xmake config changes:
+         xmake project -k vsxmake -y -m release
+       ────────────────────────────────────────────── -->
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>
-        $(MSBuildThisFileDirectory)Peanut\Peanut\src;
-        $(MSBuildThisFileDirectory)Peanut\vendor\imgui;
-        $(MSBuildThisFileDirectory)Peanut\vendor\imgui\backends;
-        $(MSBuildThisFileDirectory)Peanut\vendor\GLFW\include;
-        $(MSBuildThisFileDirectory)Peanut\vendor\glm;
-        $(MSBuildThisFileDirectory)Peanut\vendor\stb_image;
-        $(MSBuildThisFileDirectory)RayTracing\src;
-        %(AdditionalIncludeDirectories)
-      </AdditionalIncludeDirectories>
+      <!-- Defines missing from XmakeDefines but required for correct parsing -->
       <PreprocessorDefinitions>
-        PN_PLATFORM_WINDOWS;
-        PN_CUDA;
-        PN_ISPC;
-        PN_OPTIX;
-        NOMINMAX;
+        GLFW_INCLUDE_NONE;
         IMGUI_DEFINE_MATH_OPERATORS;
-        _CRT_SECURE_NO_WARNINGS;
         %(PreprocessorDefinitions)
       </PreprocessorDefinitions>
-      <LanguageStandard>stdcpp23</LanguageStandard>
+      <!-- C++23 Standard — ensure IntelliSense matches build -->
+      <LanguageStandard>stdcpplatest</LanguageStandard>
     </ClCompile>
   </ItemDefinitionGroup>
 </Project>
