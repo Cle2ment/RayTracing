@@ -341,9 +341,9 @@ __device__ inline float3 PerPixel(
         );
 
         // ── Evaluate GGX BRDF ──
-        float  D = a2 / (3.14159265358979323846f * (NdotH*NdotH*(a2-1.0f)+1.0f) * (NdotH*NdotH*(a2-1.0f)+1.0f));
-        float  G1_v = 2.0f*NdotV / (NdotV + sqrtf(NdotV*NdotV*(1.0f-a2)+a2));
-        float  G1_l = 2.0f*NdotL / (NdotL + sqrtf(NdotL*NdotL*(1.0f-a2)+a2));
+        float  D = GGX_D(NdotH, a);
+        float  G1_v = GGX_G1(NdotV, a);
+        float  G1_l = GGX_G1(NdotL, a);
         float  G = G1_v * G1_l;
         float3 F = FresnelSchlick(WoDotH, F0);
 
