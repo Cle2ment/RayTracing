@@ -4,20 +4,19 @@
 // ──────────────────────────────────────────────
 
 // ── RNG: PCG Hash (matches Renderer.cpp Utils::PCG_Hash exactly) ──
-// Using int32 instead of uint32: ISPC optimizes int32→float conversion
-// via native cvtsi2ss, avoiding the slow uint32→float code path.
+// Use unsigned int32: PCG hash relies on unsigned overflow behavior (well-defined).
+// ISPC's unsigned int32→float conversion is efficient on modern targets (AVX2/AVX512).
 
-static inline float RandomFloat(varying int32& seed) {
-    varying int32 state = seed * 747796405 + 2891336453;
-    varying int32 word  = ((state >> ((state >> 28) + 4)) ^ state) * 277803737;
+static inline float RandomFloat(varying unsigned int32& seed) {
+    varying unsigned int32 state = seed * 747796405u + 2891336453u;
+    varying unsigned int32 word  = ((state >> ((state >> 28) + 4)) ^ state) * 277803737u;
     seed = (word >> 22) ^ word;
-    // Convert to [0, 1): mask sign bit, then scale. int32→float is fast.
-    return (float)(seed & 0x7fffffff) * 2.3283064365386963e-10f;  // 1.0f / 2^31
+    return (float)(seed & 0x7fffffffu) * 2.3283064365386963e-10f;  // 1.0f / 2^31
 }
 
 static inline void RandomInUnitSphere(
     varying float result[3],
-    varying int32& seed
+    varying unsigned int32& seed
 ) {
     varying float x, y, z, lenSq;
     // Rejection sampling in unit sphere
@@ -197,11 +196,11 @@ export void ISPCRenderPixels(
         varying float contribR = 1.0f, contribG = 1.0f, contribB = 1.0f;
 
         // ── RNG seed (per-pixel, per-frame) ──
-        varying int32 seed = (int32)i;
-        seed *= (int32)frameIndex;
+        varying unsigned int32 seed = (unsigned int32)i;
+        seed *= (unsigned int32)frameIndex;
 
         for (uniform int bounce = 0; bounce < maxBounces; bounce++) {
-            seed += (int32)bounce;
+            seed += (unsigned int32)bounce;
 
             // Trace ray against all spheres
             varying int hitObj;
