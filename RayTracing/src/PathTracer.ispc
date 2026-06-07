@@ -317,7 +317,8 @@ export void ISPCRenderPixels(
             if (WoDotH < 0.0f) WoDotH = -WoDotH;
 
             float D = GGX_D(NdotH, a);
-            float G = GGX_G(NdotL, NdotV, a);
+            float G1_v = GGX_G1(NdotV, a);
+            float G = G1_v * GGX_G1(NdotL, a);
             varying float F[3];
             FresnelSchlick3(WoDotH, F0, F);
 
@@ -332,7 +333,8 @@ export void ISPCRenderPixels(
             varying float diffG = kdG * alG / 3.14159265358979323846f;
             varying float diffB = kdB * alB / 3.14159265358979323846f;
 
-            varying float pdf = max(D * NdotH / (4.0f * WoDotH + 0.001f), 0.001f);
+            // VNDF-correct PDF includes G1 for zero-variance at grazing angles
+            varying float pdf = max(G1_v * D / (4.0f * NdotV + 0.001f), 0.001f);
 
             varying float bsdfR = (specR + diffR) * NdotL;
             varying float bsdfG = (specG + diffG) * NdotL;

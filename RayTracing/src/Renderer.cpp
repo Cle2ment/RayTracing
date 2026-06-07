@@ -505,14 +505,16 @@ glm::vec4 Renderer::PerPixel(uint32_t x, uint32_t y) const
 		const float WoDotH = glm::abs(glm::dot(w_o, H));
 
 		const float  D = Utils::GGX_D(NdotH, a);
-		const float  G = Utils::GGX_G(NdotL, NdotV, a);
+		const float  G1_v = Utils::GGX_G1(NdotV, a);
+		const float  G = G1_v * Utils::GGX_G1(NdotL, a);
 		const glm::vec3 F = Utils::FresnelSchlick(WoDotH, F0);
 
 		const glm::vec3 specBRDF = D * G * F / (4.0f * NdotL * NdotV + 0.001f);
 		const glm::vec3 kD = (glm::vec3(1.0f) - F) * (1.0f - material.Metallic);
 		const glm::vec3 diffBRDF = kD * material.Albedo / glm::pi<float>();
 
-		const float pdf = glm::max(D * NdotH / (4.0f * WoDotH + 0.001f), 0.001f);
+		// VNDF-correct PDF includes G1 for zero-variance at grazing angles
+		const float pdf = glm::max(G1_v * D / (4.0f * NdotV + 0.001f), 0.001f);
 
 		const glm::vec3 bsdf = (specBRDF + diffBRDF) * NdotL;
 		contribution *= bsdf / pdf;

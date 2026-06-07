@@ -352,8 +352,8 @@ __device__ inline float3 PerPixel(
         float3 kD = make_float3((1.0f-F.x)*(1.0f-material.Metallic), (1.0f-F.y)*(1.0f-material.Metallic), (1.0f-F.z)*(1.0f-material.Metallic));
         float3 diff = make_float3(kD.x*material.Albedo.x/3.14159265358979323846f, kD.y*material.Albedo.y/3.14159265358979323846f, kD.z*material.Albedo.z/3.14159265358979323846f);
 
-        // PDF for NDF-sampled H: pdf(wi) = D*NdotH / (4*WoDotH)
-        float pdf = fmaxf(D * NdotH / (4.0f * WoDotH), 0.001f);
+        // PDF for VNDF-sampled H (includes G1 masking for zero-variance at grazing angles)
+        float pdf = fmaxf(G1_v * D / (4.0f * NdotV), 0.001f);
 
         // Combined BSDF * cosθ / pdf
         contribution.x *= (spec.x + diff.x) * NdotL / pdf;
