@@ -7,7 +7,7 @@
 ![Static Badge](https://img.shields.io/badge/Language-C++23-00599C?logo=cplusplus)
 ![Static Badge](https://img.shields.io/badge/GPU-CUDA-76B900?logo=nvidia)
 ![Static Badge](https://img.shields.io/badge/CPU_Acceleration-ISPC-0071C5?logo=intel)
-![Static Badge](https://img.shields.io/badge/Poject-Xmake-brightgreen?logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+PHBvbHlnb24gcG9pbnRzPSI2NCw0IDY0LDYyIDYyLDY0IDEsNjQgMCw2MyAwLDQwIDYwLDMiIGZpbGw9IiNmZmYiLz48L3N2Zz4=)
+![Static Badge](https://img.shields.io/badge/Project-Xmake-brightgreen?logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+PHBvbHlnb24gcG9pbnRzPSI2NCw0IDY0LDYyIDYyLDY0IDEsNjQgMCw2MyAwLDQwIDYwLDMiIGZpbGw9IiNmZmYiLz48L3N2Zz4=)
 <br/>
 ![Static Badge](https://img.shields.io/badge/Auto_Translation-Deepseek-5786FE?logo=deepseek)
 <br/>
@@ -144,10 +144,11 @@ RayTracing/
 │   └── Setup.bat               # One-click build + solution generation
 ├── Peanut/                     # Git submodule — DO NOT modify directly
 │   ├── Peanut/src/             # Peanut framework
-│   ├── vendor/glfw/            # GLFW windowing
+│   ├── vendor/GLFW/            # GLFW windowing
 │   ├── vendor/imgui/           # ImGui UI library
 │   └── vendor/glm/             # GLM math library
-└── .github/workflows/          # CI/CD (CUDA 13.3 + Vulkan)
+├── Directory.Build.props       # VS IntelliSense config (auto-discovered by MSBuild)
+└── .github/workflows/          # CI/CD (build, release, translation)
 ```
 
 ## Key Bindings
