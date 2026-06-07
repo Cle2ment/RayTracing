@@ -78,6 +78,7 @@ target("RayTracing")
     -- Inherit Peanut's include paths
     add_packages("glm")
     add_packages("stb")
+    add_defines("GLM_ENABLE_EXPERIMENTAL")
     add_includedirs(
         "Peanut/vendor/imgui",
         "Peanut/vendor/imgui/backends",

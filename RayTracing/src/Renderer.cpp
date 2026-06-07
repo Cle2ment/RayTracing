@@ -15,13 +15,14 @@
 #include "PathTracer_ispc.h"
 #endif
 
+#ifndef PN_CUDA
+
 // ──────────────────────────────────────────────
-// Shared Utils (available for both CPU and GPU fallback)
+// CPU-Only Rendering Path
 // ──────────────────────────────────────────────
 
 namespace Utils
 {
-
 	static uint32_t ConvertToRGBA(const glm::vec4& color)
 	{
 		const uint8_t r = static_cast<uint8_t>(color.r * 255.0f);
@@ -34,7 +35,6 @@ namespace Utils
 		return result;
 	}
 
-#ifndef PN_CUDA
 	static uint32_t PCG_Hash(const uint32_t input)
 	{
 		const uint32_t state = input * 747796405u + 2891336453u;
@@ -113,14 +113,9 @@ namespace Utils
 		glm::vec3 Nh = t1 * T1 + t2 * T2 + glm::sqrt(glm::max(1.0f - t1*t1 - t2*t2, 0.0f)) * Vh;
 		return glm::normalize(glm::vec3(a * Nh.x, a * Nh.y, glm::max(0.0f, Nh.z)));
 	}
-
-#endif // !PN_CUDA
 }
 
-// ──────────────────────────────────────────────
-// CPU-Only Rendering Path (guarded from GPU builds)
-// ──────────────────────────────────────────────
-#ifndef PN_CUDA
+#endif // !PN_CUDA
 
 // ──────────────────────────────────────────────
 // Shared: Constructor / Destructor
@@ -441,8 +436,10 @@ void Renderer::Render(const Scene& scene, const Camera& camera)
 }
 
 // ──────────────────────────────────────────────
-// CPU-Only: PerPixel / TraceRay / ClosestHit / Miss (guarded by #ifndef PN_CUDA at L123)
+// CPU-Only: PerPixel / TraceRay / ClosestHit / Miss
 // ──────────────────────────────────────────────
+
+#ifndef PN_CUDA
 
 glm::vec4 Renderer::PerPixel(uint32_t x, uint32_t y) const
 {
