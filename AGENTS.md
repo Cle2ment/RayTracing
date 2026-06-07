@@ -1,8 +1,8 @@
 # RayTracing — Project Knowledge Base
 
 **Generated:** 2026-05-28
-**Updated:**   2026-06-07 (Walnut→Peanut rename, ImGui v1.91+, GLFW 3.4, glm 1.0.3, stb latest, xrepo migration, VS IntelliSense fix)
-**Commit:** `29a7b39`
+**Updated:**   2026-06-08 (Phase 0 bugfixes merged: fixing 6 rendering bugs + compiler warnings)
+**Commit:** `7ab9019`
 **Branch:** `master`
 
 ## OVERVIEW
