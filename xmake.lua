@@ -7,6 +7,7 @@ add_rules("mode.debug", "mode.release", "mode.releasedbg")
 
 -- ── External packages ──
 add_requires("glm 1.0.3")
+add_requires("stb 2026.03.18")
 
 -- ── Vulkan SDK ──
 local vulkan_sdk = os.getenv("VULKAN_SDK")
@@ -19,6 +20,7 @@ target("Peanut")
     set_kind("static")
     set_languages("c++17")
     add_packages("glm")
+    add_packages("stb")
 
     -- Peanut framework source (headers auto-tracked, only .cpp needed)
     add_files("Peanut/Peanut/src/**.cpp")
@@ -67,7 +69,6 @@ target("Peanut")
         "Peanut/vendor/imgui",
         "Peanut/vendor/imgui/backends",
         "Peanut/vendor/glfw/include",
-        "Peanut/vendor/stb_image",
         vulkan_sdk .. "/Include"
     )
 
@@ -99,6 +100,7 @@ target("RayTracing")
 
     -- Inherit Peanut's include paths
     add_packages("glm")
+    add_packages("stb")
     add_includedirs(
         "Peanut/vendor/imgui",
         "Peanut/vendor/imgui/backends",
