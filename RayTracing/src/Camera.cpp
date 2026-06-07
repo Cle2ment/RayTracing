@@ -147,8 +147,8 @@ void Camera::RecalculateRayDirections()
 		for (uint32_t x = 0; x < m_ViewportWidth; x++)
 		{
 			glm::vec2 coordinate = {
-				static_cast<float>(x) / static_cast<float>(m_ViewportWidth),
-				static_cast<float>(y) / static_cast<float>(m_ViewportHeight)
+				(static_cast<float>(x) + 0.5f) / static_cast<float>(m_ViewportWidth),
+				(static_cast<float>(y) + 0.5f) / static_cast<float>(m_ViewportHeight)
 			};
 			coordinate = coordinate * 2.0f - 1.0f; // -1 -> 1
 

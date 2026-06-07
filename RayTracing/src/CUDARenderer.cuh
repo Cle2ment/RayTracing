@@ -281,7 +281,8 @@ __device__ inline float3 PerPixel(
         // Russian roulette: terminate low-contribution paths after 3 bounces
         if (i > 2)
         {
-            float p = fmaxf(contribution.x, fmaxf(contribution.y, contribution.z));
+            // Use luminance (BT.709) for survival probability: fairer than max(channel)
+            float p = 0.2126f * contribution.x + 0.7152f * contribution.y + 0.0722f * contribution.z;
             if (p < 0.001f || (p < 1.0f && RandomFloat(seed) > p))
                 break;
             float invP = 1.0f / p;
@@ -300,7 +301,6 @@ __device__ inline float3 PerPixel(
         // ── GGX Microfacet BRDF ──
         float  rough = fmaxf(material.Roughness, 0.001f);
         float  a = rough * rough;
-        float  a2 = a * a;
 
         float3 w_o = make_float3(-ray.Direction.x, -ray.Direction.y, -ray.Direction.z);
         float3 N   = payload.WorldNormal;
@@ -341,9 +341,9 @@ __device__ inline float3 PerPixel(
         );
 
         // ── Evaluate GGX BRDF ──
-        float  D = a2 / (3.14159265358979323846f * (NdotH*NdotH*(a2-1.0f)+1.0f) * (NdotH*NdotH*(a2-1.0f)+1.0f));
-        float  G1_v = 2.0f*NdotV / (NdotV + sqrtf(NdotV*NdotV*(1.0f-a2)+a2));
-        float  G1_l = 2.0f*NdotL / (NdotL + sqrtf(NdotL*NdotL*(1.0f-a2)+a2));
+        float  D = GGX_D(NdotH, a);
+        float  G1_v = GGX_G1(NdotV, a);
+        float  G1_l = GGX_G1(NdotL, a);
         float  G = G1_v * G1_l;
         float3 F = FresnelSchlick(WoDotH, F0);
 
@@ -351,8 +351,8 @@ __device__ inline float3 PerPixel(
         float3 kD = make_float3((1.0f-F.x)*(1.0f-material.Metallic), (1.0f-F.y)*(1.0f-material.Metallic), (1.0f-F.z)*(1.0f-material.Metallic));
         float3 diff = make_float3(kD.x*material.Albedo.x/3.14159265358979323846f, kD.y*material.Albedo.y/3.14159265358979323846f, kD.z*material.Albedo.z/3.14159265358979323846f);
 
-        // PDF for NDF-sampled H: pdf(wi) = D*NdotH / (4*WoDotH)
-        float pdf = fmaxf(D * NdotH / (4.0f * WoDotH), 0.001f);
+        // PDF for VNDF-sampled H (includes G1 masking for zero-variance at grazing angles)
+        float pdf = fmaxf(G1_v * D / (4.0f * NdotV), 0.001f);
 
         // Combined BSDF * cosθ / pdf
         contribution.x *= (spec.x + diff.x) * NdotL / pdf;

@@ -60,6 +60,16 @@ namespace Utils
 	}
 
 	// ── GGX Microfacet ──
+	static void BuildONB(const glm::vec3& n, glm::vec3& u, glm::vec3& v, glm::vec3& w)
+	{
+		w = n;
+		float sign = (w.z > 0.0f) ? 1.0f : -1.0f;
+		float a = -1.0f / (sign + w.z);
+		float b = w.x * w.y * a;
+		u = glm::vec3(1.0f + sign * w.x * w.x * a, sign * b, -sign * w.x);
+		v = glm::vec3(b, sign + w.y * w.y * a, -w.y);
+	}
+
 	static glm::vec3 FresnelSchlick(float cosTheta, const glm::vec3& F0)
 	{
 		float t = glm::max(1.0f - cosTheta, 0.0f);
@@ -460,8 +470,7 @@ glm::vec4 Renderer::PerPixel(uint32_t x, uint32_t y) const
 		] = TraceRay(ray);
 		if (HitDistance < 0.0f)
 		{
-			const auto skyColor = glm::vec3(0.53f, 0.81f, 0.92f);
-			light += skyColor * contribution;
+			// Miss — terminate path (no sky/environment light)
 			break;
 		}
 
@@ -482,7 +491,8 @@ glm::vec4 Renderer::PerPixel(uint32_t x, uint32_t y) const
 		// Russian roulette: probabilistically terminate low-contribution paths (after 3 guaranteed bounces)
 		if (i > 2)
 		{
-			const float p = glm::max(contribution.r, glm::max(contribution.g, contribution.b));
+			// Use luminance (BT.709) for survival probability: fairer than max(channel)
+		const float p = 0.2126f * contribution.r + 0.7152f * contribution.g + 0.0722f * contribution.b;
 			if (p < 0.001f || (p < 1.0f && Utils::RandomFloat(seed) > p))
 				break;
 			contribution /= p;
@@ -496,23 +506,43 @@ glm::vec4 Renderer::PerPixel(uint32_t x, uint32_t y) const
 		const float rough = glm::max(material.Roughness, 0.001f);
 		const float a = rough * rough;
 
+		// Build ONB from surface normal (Duff et al. 2017)
+		glm::vec3 u, v, w;
+		Utils::BuildONB(WorldNormal, u, v, w);
+
+		// Transform wo to local frame where n = (0,0,1)
+		float localWoX = glm::dot(u, w_o);
+		float localWoY = glm::dot(v, w_o);
+		float localWoZ = glm::dot(w, w_o);
+
 		const float r1 = Utils::RandomFloat(seed), r2 = Utils::RandomFloat(seed);
-		const glm::vec3 H = Utils::SampleGGX_VNDF(w_o, a, r1, r2);
-		const float NdotH = glm::max(glm::dot(WorldNormal, H), 0.001f);
-		const glm::vec3 wi = glm::reflect(-w_o, H);
-		const float NdotL = glm::max(glm::dot(WorldNormal, wi), 0.001f);
-		const float NdotV = glm::max(glm::dot(WorldNormal, w_o), 0.001f);
-		const float WoDotH = glm::abs(glm::dot(w_o, H));
+		const glm::vec3 localH = Utils::SampleGGX_VNDF(glm::vec3(localWoX, localWoY, localWoZ), a, r1, r2);
+		const float NdotH = glm::max(localH.z, 0.001f);
+		float WoDotH = localWoX*localH.x + localWoY*localH.y + localWoZ*localH.z;
+
+		// Reflect in local frame: wi = 2*(wo·H)*H - wo
+		const glm::vec3 localWi(
+			2.0f * WoDotH * localH.x - localWoX,
+			2.0f * WoDotH * localH.y - localWoY,
+			2.0f * WoDotH * localH.z - localWoZ
+		);
+		const float NdotL = glm::max(localWi.z, 0.001f);
+		const float NdotV = glm::max(localWoZ, 0.001f);
+
+		// Transform wi back to world
+		const glm::vec3 wi = u*localWi.x + v*localWi.y + w*localWi.z;
 
 		const float  D = Utils::GGX_D(NdotH, a);
-		const float  G = Utils::GGX_G(NdotL, NdotV, a);
+		const float  G1_v = Utils::GGX_G1(NdotV, a);
+		const float  G = G1_v * Utils::GGX_G1(NdotL, a);
 		const glm::vec3 F = Utils::FresnelSchlick(WoDotH, F0);
 
 		const glm::vec3 specBRDF = D * G * F / (4.0f * NdotL * NdotV + 0.001f);
 		const glm::vec3 kD = (glm::vec3(1.0f) - F) * (1.0f - material.Metallic);
 		const glm::vec3 diffBRDF = kD * material.Albedo / glm::pi<float>();
 
-		const float pdf = glm::max(D * NdotH / (4.0f * WoDotH + 0.001f), 0.001f);
+		// VNDF-correct PDF includes G1 for zero-variance at grazing angles
+		const float pdf = glm::max(G1_v * D / (4.0f * NdotV + 0.001f), 0.001f);
 
 		const glm::vec3 bsdf = (specBRDF + diffBRDF) * NdotL;
 		contribution *= bsdf / pdf;

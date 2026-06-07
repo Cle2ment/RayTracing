@@ -4,20 +4,19 @@
 // ──────────────────────────────────────────────
 
 // ── RNG: PCG Hash (matches Renderer.cpp Utils::PCG_Hash exactly) ──
-// Using int32 instead of uint32: ISPC optimizes int32→float conversion
-// via native cvtsi2ss, avoiding the slow uint32→float code path.
+// Use unsigned int32: PCG hash relies on unsigned overflow behavior (well-defined).
+// ISPC's unsigned int32→float conversion is efficient on modern targets (AVX2/AVX512).
 
-static inline float RandomFloat(varying int32& seed) {
-    varying int32 state = seed * 747796405 + 2891336453;
-    varying int32 word  = ((state >> ((state >> 28) + 4)) ^ state) * 277803737;
+static inline float RandomFloat(varying unsigned int32& seed) {
+    varying unsigned int32 state = seed * 747796405u + 2891336453u;
+    varying unsigned int32 word  = ((state >> ((state >> 28) + 4)) ^ state) * 277803737u;
     seed = (word >> 22) ^ word;
-    // Convert to [0, 1): mask sign bit, then scale. int32→float is fast.
-    return (float)(seed & 0x7fffffff) * 2.3283064365386963e-10f;  // 1.0f / 2^31
+    return (float)(seed & 0x7fffffffu) * 2.3283064365386963e-10f;  // 1.0f / 2^31
 }
 
 static inline void RandomInUnitSphere(
     varying float result[3],
-    varying int32& seed
+    varying unsigned int32& seed
 ) {
     varying float x, y, z, lenSq;
     // Rejection sampling in unit sphere
@@ -197,11 +196,11 @@ export void ISPCRenderPixels(
         varying float contribR = 1.0f, contribG = 1.0f, contribB = 1.0f;
 
         // ── RNG seed (per-pixel, per-frame) ──
-        varying int32 seed = (int32)i;
-        seed *= (int32)frameIndex;
+        varying unsigned int32 seed = (unsigned int32)i;
+        seed *= (unsigned int32)frameIndex;
 
         for (uniform int bounce = 0; bounce < maxBounces; bounce++) {
-            seed += (int32)bounce;
+            seed += (unsigned int32)bounce;
 
             // Trace ray against all spheres
             varying int hitObj;
@@ -257,10 +256,9 @@ export void ISPCRenderPixels(
             lightB += contribB * emB;
 
             // ── Russian roulette (after 3 guaranteed bounces) ──
+            // Use luminance (BT.709) for survival probability: fairer than max(channel)
             if (bounce > 2) {
-                varying float p = contribR;
-                if (contribG > p) p = contribG;
-                if (contribB > p) p = contribB;
+                varying float p = 0.2126f * contribR + 0.7152f * contribG + 0.0722f * contribB;
 
                 if (p < 0.001f)
                     break;
@@ -283,6 +281,7 @@ export void ISPCRenderPixels(
             varying float metalVal = matMetallic[hmi];
             varying float a = roughVal * roughVal;
 
+
             // ── GGX Microfacet BRDF ──
             // Outgoing direction (pointing away from surface)
             varying float woX = -rDirX, woY = -rDirY, woZ = -rDirZ;
@@ -293,18 +292,39 @@ export void ISPCRenderPixels(
             F0[1] = 0.04f + (alG - 0.04f) * metalVal;
             F0[2] = 0.04f + (alB - 0.04f) * metalVal;
 
-            float NdotV = max(dot3(normX, normY, normZ, woX, woY, woZ), 0.001f);
+            // Build ONB from surface normal inlined (Duff et al. 2017)
+            varying float ux, uy, uz, vx, vy, vz, wx, wy, wz;
+            wx = normX; wy = normY; wz = normZ;
+            {
+                varying float sign = (wz > 0.0f) ? 1.0f : -1.0f;
+                varying float a_val = -1.0f / (sign + wz);
+                varying float b = wx * wy * a_val;
+                ux = 1.0f + sign * wx * wx * a_val; uy = sign * b;               uz = -sign * wx;
+                vx = b;                            vy = sign + wy * wy * a_val;  vz = -wy;
+            }
+
+            // Transform wo to local frame where n = (0,0,1)
+            varying float localWoX = ux*woX + uy*woY + uz*woZ;
+            varying float localWoY = vx*woX + vy*woY + vz*woZ;
+            varying float localWoZ = wx*woX + wy*woY + wz*woZ;
 
             varying float rn1 = RandomFloat(seed), rn2 = RandomFloat(seed);
-            varying float H[3];
-            SampleGGX_VNDF(woX, woY, woZ, a, rn1, rn2, H);
-            float NdotH = max(dot3(normX, normY, normZ, H[0], H[1], H[2]), 0.001f);
+            varying float localH[3];
+            SampleGGX_VNDF(localWoX, localWoY, localWoZ, a, rn1, rn2, localH);
+            float NdotH = max(localH[2], 0.001f);
+            varying float WoDotH_signed = localWoX*localH[0] + localWoY*localH[1] + localWoZ*localH[2];
 
-            // Reflect outgoing around H using dot(wo, H)
-            varying float WoDotH_signed = woX*H[0] + woY*H[1] + woZ*H[2];
-            varying float wiX = 2.0f * WoDotH_signed * H[0] - woX;
-            varying float wiY = 2.0f * WoDotH_signed * H[1] - woY;
-            varying float wiZ = 2.0f * WoDotH_signed * H[2] - woZ;
+            // Reflect in local frame: wi = 2*(wo·H)*H - wo
+            varying float localWiX = 2.0f * WoDotH_signed * localH[0] - localWoX;
+            varying float localWiY = 2.0f * WoDotH_signed * localH[1] - localWoY;
+            varying float localWiZ = 2.0f * WoDotH_signed * localH[2] - localWoZ;
+            float NdotL = max(localWiZ, 0.001f);
+            float NdotV = max(localWoZ, 0.001f);
+
+            // Transform wi back to world
+            varying float wiX = ux*localWiX + vx*localWiY + wx*localWiZ;
+            varying float wiY = uy*localWiX + vy*localWiY + wy*localWiZ;
+            varying float wiZ = uz*localWiX + vz*localWiY + wz*localWiZ;
             {
                 varying float wiLenSq = wiX*wiX + wiY*wiY + wiZ*wiZ;
                 if (wiLenSq > 0.0f) {
@@ -312,14 +332,14 @@ export void ISPCRenderPixels(
                     wiX *= inv; wiY *= inv; wiZ *= inv;
                 }
             }
-            float NdotL = max(dot3(normX, normY, normZ, wiX, wiY, wiZ), 0.001f);
 
             // WoDotH for Fresnel/PDF (absolute value)
             varying float WoDotH = WoDotH_signed;
             if (WoDotH < 0.0f) WoDotH = -WoDotH;
 
             float D = GGX_D(NdotH, a);
-            float G = GGX_G(NdotL, NdotV, a);
+            float G1_v = GGX_G1(NdotV, a);
+            float G = G1_v * GGX_G1(NdotL, a);
             varying float F[3];
             FresnelSchlick3(WoDotH, F0, F);
 
@@ -334,7 +354,8 @@ export void ISPCRenderPixels(
             varying float diffG = kdG * alG / 3.14159265358979323846f;
             varying float diffB = kdB * alB / 3.14159265358979323846f;
 
-            varying float pdf = max(D * NdotH / (4.0f * WoDotH + 0.001f), 0.001f);
+            // VNDF-correct PDF includes G1 for zero-variance at grazing angles
+            varying float pdf = max(G1_v * D / (4.0f * NdotV + 0.001f), 0.001f);
 
             varying float bsdfR = (specR + diffR) * NdotL;
             varying float bsdfG = (specG + diffG) * NdotL;
