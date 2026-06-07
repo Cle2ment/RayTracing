@@ -137,8 +137,6 @@ Renderer::~Renderer()
 		m_CUDAState = nullptr;
 	}
 #endif
-	delete[] m_ImageData;
-	delete[] m_AccumulationData;
 }
 
 // ──────────────────────────────────────────────
@@ -164,12 +162,10 @@ void Renderer::OnResize(uint32_t width, uint32_t height)
 		);
 	}
 
-	delete[] m_ImageData;
-	m_ImageData = new uint32_t[width * height];
+	m_ImageData.resize(width * height);
 
 #ifndef PN_CUDA
-	delete[] m_AccumulationData;
-	m_AccumulationData = new glm::vec4[width * height];
+	m_AccumulationData.resize(width * height);
 
 	m_ImageHorizontalIterator.resize(width);
 	m_ImageVerticalIterator.resize(height);
@@ -226,7 +222,7 @@ void Renderer::Render(const Scene& scene, const Camera& camera)
 	// ── CPU Rendering Path ──
 	if (m_FrameIndex == 1)
 		memset(
-			m_AccumulationData,
+			m_AccumulationData.data(),
 			0,
 			m_FinalImage->GetWidth() * m_FinalImage->GetHeight() * sizeof(glm::vec4)
 		);
@@ -430,7 +426,7 @@ void Renderer::Render(const Scene& scene, const Camera& camera)
 	else
 #endif
 	{
-		m_FinalImage->SetData(m_ImageData);
+		m_FinalImage->SetData(m_ImageData.data());
 	}
 
 	if (m_Settings.Accumulate)
@@ -768,7 +764,7 @@ void Renderer::RenderGPU(const Scene& scene, const Camera& camera)
 	{
 		CUDARenderer_GetOutput(
 			m_CUDAState,
-			m_ImageData,
+			m_ImageData.data(),
 			width * height * sizeof(uint32_t)
 		);
 	}

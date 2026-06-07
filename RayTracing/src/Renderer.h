@@ -89,8 +89,10 @@ private:
 	const Scene* m_ActiveScene = nullptr;
 	const Camera* m_ActiveCamera = nullptr;
 
-	uint32_t* m_ImageData = nullptr;
-	glm::vec4* m_AccumulationData = nullptr;
+	std::vector<uint32_t>  m_ImageData;
+	#ifndef PN_CUDA
+	std::vector<glm::vec4> m_AccumulationData;
+	#endif
 
 	uint32_t m_FrameIndex = 1;
 	bool m_RayDirsDirty = true;  // Tracks if ray directions need re-upload to GPU
