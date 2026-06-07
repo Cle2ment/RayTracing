@@ -8,6 +8,7 @@ add_rules("mode.debug", "mode.release", "mode.releasedbg")
 -- ── External packages ──
 add_requires("glm 1.0.3")
 add_requires("stb 2026.03.18")
+add_requires("glfw 3.4")
 
 -- ── Vulkan SDK ──
 local vulkan_sdk = os.getenv("VULKAN_SDK")
@@ -21,6 +22,8 @@ target("Peanut")
     set_languages("c++17")
     add_packages("glm")
     add_packages("stb")
+
+    add_packages("glfw")
 
     -- Peanut framework source (headers auto-tracked, only .cpp needed)
     add_files("Peanut/Peanut/src/**.cpp")
@@ -37,38 +40,11 @@ target("Peanut")
         {public = false}
     )
 
-    -- GLFW (Windows only — skip Posix/X11/Wayland/macOS sources)
-    add_files(
-        "Peanut/vendor/GLFW/src/context.c",
-        "Peanut/vendor/GLFW/src/init.c",
-        "Peanut/vendor/GLFW/src/input.c",
-        "Peanut/vendor/GLFW/src/monitor.c",
-        "Peanut/vendor/GLFW/src/platform.c",
-        "Peanut/vendor/GLFW/src/vulkan.c",
-        "Peanut/vendor/GLFW/src/window.c",
-        "Peanut/vendor/GLFW/src/egl_context.c",
-        "Peanut/vendor/GLFW/src/osmesa_context.c",
-        "Peanut/vendor/GLFW/src/null_init.c",
-        "Peanut/vendor/GLFW/src/null_joystick.c",
-        "Peanut/vendor/GLFW/src/null_monitor.c",
-        "Peanut/vendor/GLFW/src/null_window.c",
-        "Peanut/vendor/GLFW/src/win32_init.c",
-        "Peanut/vendor/GLFW/src/win32_joystick.c",
-        "Peanut/vendor/GLFW/src/win32_module.c",
-        "Peanut/vendor/GLFW/src/win32_monitor.c",
-        "Peanut/vendor/GLFW/src/win32_thread.c",
-        "Peanut/vendor/GLFW/src/win32_time.c",
-        "Peanut/vendor/GLFW/src/win32_window.c",
-        "Peanut/vendor/GLFW/src/wgl_context.c",
-        {public = false}
-    )
-
     -- Include paths
     add_includedirs(
         "Peanut/Peanut/src",
         "Peanut/vendor/imgui",
         "Peanut/vendor/imgui/backends",
-        "Peanut/vendor/glfw/include",
         vulkan_sdk .. "/Include"
     )
 
@@ -97,6 +73,7 @@ target("RayTracing")
 
     -- Depend on Peanut
     add_deps("Peanut")
+    add_packages("glfw")
 
     -- Inherit Peanut's include paths
     add_packages("glm")
@@ -104,7 +81,6 @@ target("RayTracing")
     add_includedirs(
         "Peanut/vendor/imgui",
         "Peanut/vendor/imgui/backends",
-        "Peanut/vendor/glfw/include",
         "Peanut/Peanut/src",
         vulkan_sdk .. "/Include"
     )
