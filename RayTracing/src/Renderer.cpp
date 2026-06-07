@@ -60,6 +60,16 @@ namespace Utils
 	}
 
 	// ── GGX Microfacet ──
+	static void BuildONB(const glm::vec3& n, glm::vec3& u, glm::vec3& v, glm::vec3& w)
+	{
+		w = n;
+		float sign = (w.z > 0.0f) ? 1.0f : -1.0f;
+		float a = -1.0f / (sign + w.z);
+		float b = w.x * w.y * a;
+		u = glm::vec3(1.0f + sign * w.x * w.x * a, sign * b, -sign * w.x);
+		v = glm::vec3(b, sign + w.y * w.y * a, -w.y);
+	}
+
 	static glm::vec3 FresnelSchlick(float cosTheta, const glm::vec3& F0)
 	{
 		float t = glm::max(1.0f - cosTheta, 0.0f);
@@ -496,13 +506,31 @@ glm::vec4 Renderer::PerPixel(uint32_t x, uint32_t y) const
 		const float rough = glm::max(material.Roughness, 0.001f);
 		const float a = rough * rough;
 
+		// Build ONB from surface normal (Duff et al. 2017)
+		glm::vec3 u, v, w;
+		Utils::BuildONB(WorldNormal, u, v, w);
+
+		// Transform wo to local frame where n = (0,0,1)
+		float localWoX = glm::dot(u, w_o);
+		float localWoY = glm::dot(v, w_o);
+		float localWoZ = glm::dot(w, w_o);
+
 		const float r1 = Utils::RandomFloat(seed), r2 = Utils::RandomFloat(seed);
-		const glm::vec3 H = Utils::SampleGGX_VNDF(w_o, a, r1, r2);
-		const float NdotH = glm::max(glm::dot(WorldNormal, H), 0.001f);
-		const glm::vec3 wi = glm::reflect(-w_o, H);
-		const float NdotL = glm::max(glm::dot(WorldNormal, wi), 0.001f);
-		const float NdotV = glm::max(glm::dot(WorldNormal, w_o), 0.001f);
-		const float WoDotH = glm::abs(glm::dot(w_o, H));
+		const glm::vec3 localH = Utils::SampleGGX_VNDF(glm::vec3(localWoX, localWoY, localWoZ), a, r1, r2);
+		const float NdotH = glm::max(localH.z, 0.001f);
+		float WoDotH = localWoX*localH.x + localWoY*localH.y + localWoZ*localH.z;
+
+		// Reflect in local frame: wi = 2*(wo·H)*H - wo
+		const glm::vec3 localWi(
+			2.0f * WoDotH * localH.x - localWoX,
+			2.0f * WoDotH * localH.y - localWoY,
+			2.0f * WoDotH * localH.z - localWoZ
+		);
+		const float NdotL = glm::max(localWi.z, 0.001f);
+		const float NdotV = glm::max(localWoZ, 0.001f);
+
+		// Transform wi back to world
+		const glm::vec3 wi = u*localWi.x + v*localWi.y + w*localWi.z;
 
 		const float  D = Utils::GGX_D(NdotH, a);
 		const float  G1_v = Utils::GGX_G1(NdotV, a);

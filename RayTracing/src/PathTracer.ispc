@@ -281,6 +281,22 @@ export void ISPCRenderPixels(
             varying float metalVal = matMetallic[hmi];
             varying float a = roughVal * roughVal;
 
+// ── Helper: Build ONB from a unit normal (Duff et al. 2017) ──
+
+static inline void BuildONB(
+    varying float nx, varying float ny, varying float nz,
+    varying float& ux, varying float& uy, varying float& uz,
+    varying float& vx, varying float& vy, varying float& vz,
+    varying float& wx, varying float& wy, varying float& wz
+) {
+    wx = nx; wy = ny; wz = nz;
+    varying float sign = (wz > 0.0f) ? 1.0f : -1.0f;
+    varying float a_val = -1.0f / (sign + wz);
+    varying float b = wx * wy * a_val;
+    ux = 1.0f + sign * wx * wx * a_val; uy = sign * b;               uz = -sign * wx;
+    vx = b;                            vy = sign + wy * wy * a_val;  vz = -wy;
+}
+
             // ── GGX Microfacet BRDF ──
             // Outgoing direction (pointing away from surface)
             varying float woX = -rDirX, woY = -rDirY, woZ = -rDirZ;
@@ -291,18 +307,32 @@ export void ISPCRenderPixels(
             F0[1] = 0.04f + (alG - 0.04f) * metalVal;
             F0[2] = 0.04f + (alB - 0.04f) * metalVal;
 
-            float NdotV = max(dot3(normX, normY, normZ, woX, woY, woZ), 0.001f);
+            // Build ONB from surface normal (Duff et al. 2017)
+            varying float ux, uy, uz, vx, vy, vz, wx, wy, wz;
+            BuildONB(normX, normY, normZ, ux, uy, uz, vx, vy, vz, wx, wy, wz);
+
+            // Transform wo to local frame where n = (0,0,1)
+            varying float localWoX = ux*woX + uy*woY + uz*woZ;
+            varying float localWoY = vx*woX + vy*woY + vz*woZ;
+            varying float localWoZ = wx*woX + wy*woY + wz*woZ;
 
             varying float rn1 = RandomFloat(seed), rn2 = RandomFloat(seed);
-            varying float H[3];
-            SampleGGX_VNDF(woX, woY, woZ, a, rn1, rn2, H);
-            float NdotH = max(dot3(normX, normY, normZ, H[0], H[1], H[2]), 0.001f);
+            varying float localH[3];
+            SampleGGX_VNDF(localWoX, localWoY, localWoZ, a, rn1, rn2, localH);
+            float NdotH = max(localH[2], 0.001f);
+            varying float WoDotH = localWoX*localH[0] + localWoY*localH[1] + localWoZ*localH[2];
 
-            // Reflect outgoing around H using dot(wo, H)
-            varying float WoDotH_signed = woX*H[0] + woY*H[1] + woZ*H[2];
-            varying float wiX = 2.0f * WoDotH_signed * H[0] - woX;
-            varying float wiY = 2.0f * WoDotH_signed * H[1] - woY;
-            varying float wiZ = 2.0f * WoDotH_signed * H[2] - woZ;
+            // Reflect in local frame: wi = 2*(wo·H)*H - wo
+            varying float localWiX = 2.0f * WoDotH * localH[0] - localWoX;
+            varying float localWiY = 2.0f * WoDotH * localH[1] - localWoY;
+            varying float localWiZ = 2.0f * WoDotH * localH[2] - localWoZ;
+            float NdotL = max(localWiZ, 0.001f);
+            float NdotV = max(localWoZ, 0.001f);
+
+            // Transform wi back to world
+            varying float wiX = ux*localWiX + vx*localWiY + wx*localWiZ;
+            varying float wiY = uy*localWiX + vy*localWiY + wy*localWiZ;
+            varying float wiZ = uz*localWiX + vz*localWiY + wz*localWiZ;
             {
                 varying float wiLenSq = wiX*wiX + wiY*wiY + wiZ*wiZ;
                 if (wiLenSq > 0.0f) {
@@ -310,7 +340,6 @@ export void ISPCRenderPixels(
                     wiX *= inv; wiY *= inv; wiZ *= inv;
                 }
             }
-            float NdotL = max(dot3(normX, normY, normZ, wiX, wiY, wiZ), 0.001f);
 
             // WoDotH for Fresnel/PDF (absolute value)
             varying float WoDotH = WoDotH_signed;
