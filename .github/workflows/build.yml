@@ -56,14 +56,14 @@ jobs:
         if: matrix.configuration == 'Debug'
         shell: pwsh
         run: |
-          xmake f -m debug
+          xmake f -m debug -y
           xmake build
 
       - name: Build (Release)
         if: matrix.configuration == 'Release'
         shell: pwsh
         run: |
-          xmake f -m release
+          xmake f -m release -y
           xmake build
 
       # ── Locate actual xmake output directory (Release) ──
