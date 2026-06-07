@@ -301,7 +301,6 @@ __device__ inline float3 PerPixel(
         // ── GGX Microfacet BRDF ──
         float  rough = fmaxf(material.Roughness, 0.001f);
         float  a = rough * rough;
-        float  a2 = a * a;
 
         float3 w_o = make_float3(-ray.Direction.x, -ray.Direction.y, -ray.Direction.z);
         float3 N   = payload.WorldNormal;
