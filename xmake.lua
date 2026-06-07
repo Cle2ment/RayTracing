@@ -85,8 +85,10 @@ target("RayTracing")
         vulkan_sdk .. "/Include"
     )
 
+    -- Warnings as errors for MSVC: /W4 = equivalent to -Wall -Wextra
+    -- Suppress: C4100 (unused param, common in vendor callbacks), C4062 (unhandled enum, noise)
     if is_plat("windows") then
-        add_cxflags("/utf-8", "/EHsc")
+        add_cxflags("/utf-8", "/EHsc", "/W4", "/wd4100", "/wd4062")
         add_defines("PN_PLATFORM_WINDOWS", "NOMINMAX")
         add_links("opengl32", "gdi32")
     end
