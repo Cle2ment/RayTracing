@@ -281,21 +281,6 @@ export void ISPCRenderPixels(
             varying float metalVal = matMetallic[hmi];
             varying float a = roughVal * roughVal;
 
-// ── Helper: Build ONB from a unit normal (Duff et al. 2017) ──
-
-static inline void BuildONB(
-    varying float nx, varying float ny, varying float nz,
-    varying float& ux, varying float& uy, varying float& uz,
-    varying float& vx, varying float& vy, varying float& vz,
-    varying float& wx, varying float& wy, varying float& wz
-) {
-    wx = nx; wy = ny; wz = nz;
-    varying float sign = (wz > 0.0f) ? 1.0f : -1.0f;
-    varying float a_val = -1.0f / (sign + wz);
-    varying float b = wx * wy * a_val;
-    ux = 1.0f + sign * wx * wx * a_val; uy = sign * b;               uz = -sign * wx;
-    vx = b;                            vy = sign + wy * wy * a_val;  vz = -wy;
-}
 
             // ── GGX Microfacet BRDF ──
             // Outgoing direction (pointing away from surface)
@@ -307,9 +292,16 @@ static inline void BuildONB(
             F0[1] = 0.04f + (alG - 0.04f) * metalVal;
             F0[2] = 0.04f + (alB - 0.04f) * metalVal;
 
-            // Build ONB from surface normal (Duff et al. 2017)
+            // Build ONB from surface normal inlined (Duff et al. 2017)
             varying float ux, uy, uz, vx, vy, vz, wx, wy, wz;
-            BuildONB(normX, normY, normZ, ux, uy, uz, vx, vy, vz, wx, wy, wz);
+            wx = normX; wy = normY; wz = normZ;
+            {
+                varying float sign = (wz > 0.0f) ? 1.0f : -1.0f;
+                varying float a_val = -1.0f / (sign + wz);
+                varying float b = wx * wy * a_val;
+                ux = 1.0f + sign * wx * wx * a_val; uy = sign * b;               uz = -sign * wx;
+                vx = b;                            vy = sign + wy * wy * a_val;  vz = -wy;
+            }
 
             // Transform wo to local frame where n = (0,0,1)
             varying float localWoX = ux*woX + uy*woY + uz*woZ;
@@ -320,12 +312,12 @@ static inline void BuildONB(
             varying float localH[3];
             SampleGGX_VNDF(localWoX, localWoY, localWoZ, a, rn1, rn2, localH);
             float NdotH = max(localH[2], 0.001f);
-            varying float WoDotH = localWoX*localH[0] + localWoY*localH[1] + localWoZ*localH[2];
+            varying float WoDotH_signed = localWoX*localH[0] + localWoY*localH[1] + localWoZ*localH[2];
 
             // Reflect in local frame: wi = 2*(wo·H)*H - wo
-            varying float localWiX = 2.0f * WoDotH * localH[0] - localWoX;
-            varying float localWiY = 2.0f * WoDotH * localH[1] - localWoY;
-            varying float localWiZ = 2.0f * WoDotH * localH[2] - localWoZ;
+            varying float localWiX = 2.0f * WoDotH_signed * localH[0] - localWoX;
+            varying float localWiY = 2.0f * WoDotH_signed * localH[1] - localWoY;
+            varying float localWiZ = 2.0f * WoDotH_signed * localH[2] - localWoZ;
             float NdotL = max(localWiZ, 0.001f);
             float NdotV = max(localWoZ, 0.001f);
 
