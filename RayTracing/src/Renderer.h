@@ -36,7 +36,7 @@ public:
 	};
 
 	Renderer();
-	~Renderer();
+	~Renderer() noexcept;
 
 	Renderer(const Renderer&) = delete;
 	Renderer& operator=(const Renderer&) = delete;
@@ -76,8 +76,8 @@ private:
 		const Ray& ray,
 		float hitDistance,
 		int objectIndex
-	) const;
-	static HitPayLoad Miss(const Ray& ray);
+	) const noexcept;
+	static HitPayLoad Miss(const Ray& ray) noexcept;
 #endif
 
 private:

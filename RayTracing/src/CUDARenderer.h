@@ -87,7 +87,7 @@ void CUDARenderer_DebugFill(CUDARenderState* state);
 // RAII deleter for CUDARenderState
 struct CUDARenderStateDeleter
 {
-    void operator()(CUDARenderState* state) const
+    void operator()(CUDARenderState* state) const noexcept
     {
         CUDARenderer_Destroy(state);
     }

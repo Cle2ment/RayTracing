@@ -15,7 +15,7 @@ struct Material
 	glm::vec3 EmissionColor{ 0.0f };
 	float EmissionPower = 0.0f;
 
-	[[nodiscard]] glm::vec3 GetEmission() const { return EmissionColor * EmissionPower; }
+	[[nodiscard]] glm::vec3 GetEmission() const noexcept { return EmissionColor * EmissionPower; }
 };
 
 struct Sphere

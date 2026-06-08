@@ -130,7 +130,7 @@ Renderer::Renderer()
 #endif
 }
 
-Renderer::~Renderer() = default;
+Renderer::~Renderer() noexcept = default;
 
 // ──────────────────────────────────────────────
 // OnResize (shared between CPU and GPU paths)
@@ -589,7 +589,7 @@ Renderer::HitPayLoad Renderer::ClosestHit(
 	const Ray& ray,
 	const float hitDistance,
 	const int objectIndex
-) const
+) const noexcept
 {
 	Renderer::HitPayLoad payload;
 	payload.HitDistance = hitDistance;
@@ -607,7 +607,7 @@ Renderer::HitPayLoad Renderer::ClosestHit(
 	return payload;
 }
 
-Renderer::HitPayLoad Renderer::Miss(const Ray& ray)
+Renderer::HitPayLoad Renderer::Miss(const Ray& ray) noexcept
 {
 	Renderer::HitPayLoad payload;
 	payload.HitDistance = -1.0f;
