@@ -3,6 +3,17 @@
 // Compile: ispc --target=avx2,avx512skx-i32x16 --arch=x86-64
 // ──────────────────────────────────────────────
 
+// ── Named Constants ──
+
+static const float kPi = 3.14159265358979323846f;
+static const float kSelfIntersectionEpsilon = 0.0001f;
+static const float kDenominatorEpsilon = 0.0001f;
+static const float kRoughnessMin = 0.001f;
+static const float kNdotMin = 0.001f;
+static const float kRussianRouletteThreshold = 0.001f;
+static const float kSpecDenominatorEps = 0.001f;
+static const float kInSphereEpsilon = 1e-6f;
+
 // ── RNG: PCG Hash (matches Renderer.cpp Utils::PCG_Hash exactly) ──
 // Use unsigned int32: PCG hash relies on unsigned overflow behavior (well-defined).
 // ISPC's unsigned int32→float conversion is efficient on modern targets (AVX2/AVX512).
@@ -25,7 +36,7 @@ static inline void RandomInUnitSphere(
         y = RandomFloat(seed) * 2.0f - 1.0f;
         z = RandomFloat(seed) * 2.0f - 1.0f;
         lenSq = x * x + y * y + z * z;
-    } while (lenSq > 1.0f || lenSq < 1e-6f);
+    } while (lenSq > 1.0f || lenSq < kInSphereEpsilon);
 
     varying float invLen = rsqrt(lenSq);
     result[0] = x * invLen;
@@ -64,13 +75,13 @@ static inline void FresnelSchlick3(float cosTheta, varying float F0[3], varying 
 static inline float GGX_D(float NdotH, float a) {
     float a2 = a * a;
     float d = NdotH * NdotH * (a2 - 1.0f) + 1.0f;
-    return a2 / (3.14159265358979323846f * d * d);
+    return a2 / (kPi * d * d);
 }
 
 static inline float GGX_G1(float NdotV, float a) {
     float a2 = a * a;
     float denom = NdotV + sqrt(NdotV * NdotV * (1.0f - a2) + a2);
-    return 2.0f * NdotV / max(denom, 0.0001f);
+    return 2.0f * NdotV / max(denom, kDenominatorEpsilon);
 }
 
 static inline float GGX_G(float NdotL, float NdotV, float a) {
@@ -103,7 +114,7 @@ static inline void SampleGGX_VNDF(
     varying float T2z = Vhx*T1y - Vhy*T1x;
 
     varying float r = sqrt(r1);
-    varying float phi = 2.0f * 3.14159265358979323846f * r2;
+    varying float phi = 2.0f * kPi * r2;
     varying float t1 = r * cos(phi);
     varying float t2 = r * sin(phi);
     varying float s = 0.5f * (1.0f + Vhz);
@@ -260,7 +271,7 @@ export void ISPCRenderPixels(
             if (bounce > 2) {
                 varying float p = 0.2126f * contribR + 0.7152f * contribG + 0.0722f * contribB;
 
-                if (p < 0.001f)
+                if (p < kRussianRouletteThreshold)
                     break;
                 if (p < 1.0f && RandomFloat(seed) > p)
                     break;
@@ -272,12 +283,12 @@ export void ISPCRenderPixels(
             }
 
             // ── Bounce: new ray origin (offset to avoid self-intersection) ──
-            rOrigX = hitPosX + normX * 0.0001f;
-            rOrigY = hitPosY + normY * 0.0001f;
-            rOrigZ = hitPosZ + normZ * 0.0001f;
+            rOrigX = hitPosX + normX * kSelfIntersectionEpsilon;
+            rOrigY = hitPosY + normY * kSelfIntersectionEpsilon;
+            rOrigZ = hitPosZ + normZ * kSelfIntersectionEpsilon;
 
             // Load roughness + metallic for GGX
-            varying float roughVal = max(matRoughness[hmi], 0.001f);
+            varying float roughVal = max(matRoughness[hmi], kRoughnessMin);
             varying float metalVal = matMetallic[hmi];
             varying float a = roughVal * roughVal;
 
@@ -311,15 +322,15 @@ export void ISPCRenderPixels(
             varying float rn1 = RandomFloat(seed), rn2 = RandomFloat(seed);
             varying float localH[3];
             SampleGGX_VNDF(localWoX, localWoY, localWoZ, a, rn1, rn2, localH);
-            float NdotH = max(localH[2], 0.001f);
+            float NdotH = max(localH[2], kNdotMin);
             varying float WoDotH_signed = localWoX*localH[0] + localWoY*localH[1] + localWoZ*localH[2];
 
             // Reflect in local frame: wi = 2*(wo·H)*H - wo
             varying float localWiX = 2.0f * WoDotH_signed * localH[0] - localWoX;
             varying float localWiY = 2.0f * WoDotH_signed * localH[1] - localWoY;
             varying float localWiZ = 2.0f * WoDotH_signed * localH[2] - localWoZ;
-            float NdotL = max(localWiZ, 0.001f);
-            float NdotV = max(localWoZ, 0.001f);
+            float NdotL = max(localWiZ, kNdotMin);
+            float NdotV = max(localWoZ, kNdotMin);
 
             // Transform wi back to world
             varying float wiX = ux*localWiX + vx*localWiY + wx*localWiZ;
@@ -343,19 +354,19 @@ export void ISPCRenderPixels(
             varying float F[3];
             FresnelSchlick3(WoDotH, F0, F);
 
-            varying float specR = D * G * F[0] / (4.0f * NdotL * NdotV + 0.001f);
-            varying float specG = D * G * F[1] / (4.0f * NdotL * NdotV + 0.001f);
-            varying float specB = D * G * F[2] / (4.0f * NdotL * NdotV + 0.001f);
+            varying float specR = D * G * F[0] / (4.0f * NdotL * NdotV + kSpecDenominatorEps);
+            varying float specG = D * G * F[1] / (4.0f * NdotL * NdotV + kSpecDenominatorEps);
+            varying float specB = D * G * F[2] / (4.0f * NdotL * NdotV + kSpecDenominatorEps);
 
             varying float kdR = (1.0f - F[0]) * (1.0f - metalVal);
             varying float kdG = (1.0f - F[1]) * (1.0f - metalVal);
             varying float kdB = (1.0f - F[2]) * (1.0f - metalVal);
-            varying float diffR = kdR * alR / 3.14159265358979323846f;
-            varying float diffG = kdG * alG / 3.14159265358979323846f;
-            varying float diffB = kdB * alB / 3.14159265358979323846f;
+            varying float diffR = kdR * alR / kPi;
+            varying float diffG = kdG * alG / kPi;
+            varying float diffB = kdB * alB / kPi;
 
             // VNDF-correct PDF includes G1 for zero-variance at grazing angles
-            varying float pdf = max(G1_v * D / (4.0f * NdotV + 0.001f), 0.001f);
+            varying float pdf = max(G1_v * D / (4.0f * NdotV + kSpecDenominatorEps), kNdotMin);
 
             varying float bsdfR = (specR + diffR) * NdotL;
             varying float bsdfG = (specG + diffG) * NdotL;

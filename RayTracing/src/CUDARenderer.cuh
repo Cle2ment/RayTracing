@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CUDATypes.cuh"
+#include "Constants.h"
 
 // ──────────────────────────────────────────────
 // Device-side utility functions (RNG)
@@ -27,7 +28,7 @@ __device__ inline float3 RandomCosineWeightedDirection(uint32_t& seed)
 	float r1 = RandomFloat(seed);
 	float r2 = RandomFloat(seed);
 
-	float phi = 2.0f * 3.14159265358979323846f * r1;
+	float phi = 2.0f * kPi * r1;
 	float cosTheta = sqrtf(r2);           // cosine-weighted
 	float sinTheta = sqrtf(1.0f - r2);
 
@@ -69,14 +70,14 @@ __device__ inline float GGX_D(float NdotH, float a)
 {
     float a2 = a * a;
     float d = NdotH * NdotH * (a2 - 1.0f) + 1.0f;
-    return a2 / (3.14159265358979323846f * d * d);
+    return a2 / (kPi * d * d);
 }
 
 __device__ inline float GGX_G1(float NdotV, float a)
 {
     float a2 = a * a;
     float denom = NdotV + sqrtf(NdotV * NdotV * (1.0f - a2) + a2);
-    return 2.0f * NdotV / fmaxf(denom, 0.0001f);
+    return 2.0f * NdotV / fmaxf(denom, kDenominatorEpsilon);
 }
 
 __device__ inline float GGX_G(float NdotL, float NdotV, float a)
@@ -107,7 +108,7 @@ __device__ inline float3 SampleGGX_VNDF(float3 V, float a, float r1, float r2)
     );
 
     float r = sqrtf(r1);
-    float phi = 2.0f * 3.14159265358979323846f * r2;
+    float phi = 2.0f * kPi * r2;
     float t1 = r * cosf(phi);
     float t2 = r * sinf(phi);
     float s = 0.5f * (1.0f + Vh.z);
@@ -293,19 +294,19 @@ __device__ inline float3 PerPixel(
 
         // Bounce: offset origin slightly to avoid self-intersection
         ray.Origin = make_float3(
-            payload.WorldPosition.x + payload.WorldNormal.x * 0.0001f,
-            payload.WorldPosition.y + payload.WorldNormal.y * 0.0001f,
-            payload.WorldPosition.z + payload.WorldNormal.z * 0.0001f
+            payload.WorldPosition.x + payload.WorldNormal.x * kSelfIntersectionEpsilon,
+            payload.WorldPosition.y + payload.WorldNormal.y * kSelfIntersectionEpsilon,
+            payload.WorldPosition.z + payload.WorldNormal.z * kSelfIntersectionEpsilon
         );
 
         // ── GGX Microfacet BRDF ──
-        float  rough = fmaxf(material.Roughness, 0.001f);
+        float  rough = fmaxf(material.Roughness, kRoughnessMin);
         float  a = rough * rough;
 
         float3 w_o = make_float3(-ray.Direction.x, -ray.Direction.y, -ray.Direction.z);
         float3 N   = payload.WorldNormal;
         float  NdotV = N.x*w_o.x + N.y*w_o.y + N.z*w_o.z;
-        if (NdotV < 0.001f) NdotV = 0.001f;
+        if (NdotV < kNdotMin) NdotV = kNdotMin;
 
         float3 F0 = make_float3(
             0.04f + (material.Albedo.x - 0.04f) * material.Metallic,
@@ -322,7 +323,7 @@ __device__ inline float3 PerPixel(
             w_t.x*w_o.x + w_t.y*w_o.y + w_t.z*w_o.z
         );
         float3 localH = SampleGGX_VNDF(localWo, a, RandomFloat(seed), RandomFloat(seed));
-        float NdotH = fmaxf(localH.z, 0.001f);
+        float NdotH = fmaxf(localH.z, kNdotMin);
         float WoDotH = localWo.x*localH.x + localWo.y*localH.y + localWo.z*localH.z;
 
         // Reflect in local frame: wi = 2*(wo·H)*H - wo
@@ -331,7 +332,7 @@ __device__ inline float3 PerPixel(
             2.0f * WoDotH * localH.y - localWo.y,
             2.0f * WoDotH * localH.z - localWo.z
         );
-        float NdotL = fmaxf(localWi.z, 0.001f);
+        float NdotL = fmaxf(localWi.z, kNdotMin);
 
         // Transform wi back to world
         float3 wi = make_float3(
@@ -349,10 +350,10 @@ __device__ inline float3 PerPixel(
 
         float3 spec = make_float3(D*G*F.x/(4.0f*NdotL*NdotV), D*G*F.y/(4.0f*NdotL*NdotV), D*G*F.z/(4.0f*NdotL*NdotV));
         float3 kD = make_float3((1.0f-F.x)*(1.0f-material.Metallic), (1.0f-F.y)*(1.0f-material.Metallic), (1.0f-F.z)*(1.0f-material.Metallic));
-        float3 diff = make_float3(kD.x*material.Albedo.x/3.14159265358979323846f, kD.y*material.Albedo.y/3.14159265358979323846f, kD.z*material.Albedo.z/3.14159265358979323846f);
+        float3 diff = make_float3(kD.x*material.Albedo.x/kPi, kD.y*material.Albedo.y/kPi, kD.z*material.Albedo.z/kPi);
 
         // PDF for VNDF-sampled H (includes G1 masking for zero-variance at grazing angles)
-        float pdf = fmaxf(G1_v * D / (4.0f * NdotV), 0.001f);
+        float pdf = fmaxf(G1_v * D / (4.0f * NdotV), kNdotMin);
 
         // Combined BSDF * cosθ / pdf
         contribution.x *= (spec.x + diff.x) * NdotL / pdf;
