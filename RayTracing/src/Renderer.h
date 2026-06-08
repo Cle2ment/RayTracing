@@ -26,6 +26,7 @@ public:
 	{
 		bool Accumulate = true;
 		bool SlowRandom = false;
+		int  MaxBounces = 5;
 #ifdef PN_OPTIX
 		bool EnableDenoising = true;
 #endif

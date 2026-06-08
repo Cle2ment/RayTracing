@@ -62,8 +62,9 @@ struct CUDARenderState
     uint32_t allocatedSphereCount;   // Track current GPU allocation size
     uint32_t allocatedMaterialCount;
 
-    cudaStream_t uploadStream;      // Async stream for H2D transfers
-    cudaStream_t computeStream;     // Async stream for kernel launches
+    cudaStream_t uploadStream;          // Async stream for H2D transfers
+    cudaStream_t computeStream;         // Async stream for kernel launches
+    cudaEvent_t  uploadCompleteEvent;   // Signals when pending uploads finish
     bool streamsCreated;
     bool cudaError;                    // Set on CUDA error (Release: skip GPU ops; Debug: abort)
 
@@ -109,6 +110,7 @@ void CUDARenderer_Destroy(CUDARenderState* state)
 
     if (state->streamsCreated)
     {
+        cudaEventDestroy(state->uploadCompleteEvent);
         cudaStreamDestroy(state->uploadStream);
         cudaStreamDestroy(state->computeStream);
     }
@@ -165,6 +167,7 @@ int CUDARenderer_Init(CUDARenderState* state)
         return 0;
     }
     state->streamsCreated = true;
+    cudaEventCreate(&state->uploadCompleteEvent);
     return 1;
 }
 
@@ -291,8 +294,9 @@ void CUDARenderer_Render(
     if (!state || !state->initialized) return;
     if (state->pixelCount == 0) return;
 
-    // Wait for pending uploads to complete before launching compute
-    CUDA_CHECK(cudaStreamSynchronize(state->uploadStream));
+    // Signal compute stream to wait for pending uploads (non-blocking)
+    cudaEventRecord(state->uploadCompleteEvent, state->uploadStream);
+    cudaStreamWaitEvent(state->computeStream, state->uploadCompleteEvent, 0);
 
     // Clear accumulation buffer on first frame
     if (frameIndex == 1)
@@ -301,7 +305,7 @@ void CUDARenderer_Render(
         int blocks = (state->pixelCount + threadsPerBlock - 1) / threadsPerBlock;
         ClearAccumulationKernel<<<blocks, threadsPerBlock, 0, state->computeStream>>>(
             state->d_AccumulationBuffer, state->pixelCount);
-        CUDA_CHECK(cudaStreamSynchronize(state->computeStream));
+        // No sync needed: subsequent kernels on same computeStream execute in order
     }
 
     // ── Pass 1: Path trace raw samples ──

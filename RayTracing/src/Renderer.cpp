@@ -175,7 +175,7 @@ void Renderer::OnResize(uint32_t width, uint32_t height)
 		if (CUDARenderer_Init(m_CUDAState.get()))
 		{
 			cudaInitialized = true;
-			CUDARenderer_SetSettings(m_CUDAState.get(), 5);
+			CUDARenderer_SetSettings(m_CUDAState.get(), m_Settings.MaxBounces);
 		}
 	}
 
@@ -299,7 +299,7 @@ void Renderer::Render(const Scene& scene, const Camera& camera)
 			m_ISPCMatEmissionPower.data(),
 			m_ISPCOutputR.data(), m_ISPCOutputG.data(), m_ISPCOutputB.data(), m_ISPCOutputA.data(),
 			static_cast<int32_t>(pixelCount), static_cast<int32_t>(sphereCount),
-			static_cast<int32_t>(m_FrameIndex), 5  // maxBounces
+			static_cast<int32_t>(m_FrameIndex), m_Settings.MaxBounces
 		);
 
 		// ── Unpack: accumulate + tone map + RGBA convert ──
@@ -324,21 +324,21 @@ void Renderer::Render(const Scene& scene, const Camera& camera)
 		{
 			std::ranges::for_each(
 				m_ImageHorizontalIterator.begin(), m_ImageHorizontalIterator.end(),
-				[this, y](const uint32_t x)
+				[this, y, width = m_FinalImage->GetWidth()](const uint32_t x)
 				{
 					const glm::vec4 color = PerPixel(x, y);
+					const uint32_t idx = x + y * width;
 
-					m_AccumulationData[x + y * m_FinalImage->GetWidth()] += color;
+					m_AccumulationData[idx] += color;
 
-					glm::vec4 accumulatedColor
-						= m_AccumulationData[x + y * m_FinalImage->GetWidth()];
+					glm::vec4 accumulatedColor = m_AccumulationData[idx];
 					accumulatedColor /= static_cast<float>(m_FrameIndex);
 
 					accumulatedColor = glm::clamp(
 						accumulatedColor,
 						glm::vec4(0.0f), glm::vec4(1.0f)
 					);
-					m_ImageData[x + y * m_FinalImage->GetWidth()]
+					m_ImageData[idx]
 						= Utils::ConvertToRGBA(accumulatedColor);
 				});
 		});
@@ -445,7 +445,7 @@ glm::vec4 Renderer::PerPixel(uint32_t x, uint32_t y) const
 	uint32_t seed = x + y * m_FinalImage->GetWidth();
 	seed *= m_FrameIndex;
 
-	int bounces = 5;
+	int bounces = m_Settings.MaxBounces;
 	for (int i = 0; i < bounces; i++)
 	{
 		seed += i;
@@ -723,7 +723,7 @@ void Renderer::RenderGPU(const Scene& scene, const Camera& camera)
 	// Update settings
 	CUDARenderer_SetSettings(
 		m_CUDAState.get(),
-		5  // MaxBounces
+		m_Settings.MaxBounces
 	);
 
 	// Launch CUDA render kernel
