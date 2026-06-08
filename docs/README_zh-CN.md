@@ -9,46 +9,46 @@
 ![Static Badge](https://img.shields.io/badge/CPU_Acceleration-ISPC-0071C5?logo=intel)
 ![Static Badge](https://img.shields.io/badge/Project-Xmake-brightgreen?logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+PHBvbHlnb24gcG9pbnRzPSI2NCw0IDY0LDYyIDYyLDY0IDEsNjQgMCw2MyAwLDQwIDYwLDMiIGZpbGw9IiNmZmYiLz48L3N2Zz4=)
 <br/>
-![Static Badge](https://img.shields.io/badge/Auto_Translation-Deepseek-5786FE?logo=deepseek)
+![Static Badge](https://img.shields.io/badge/自动翻译-Deepseek-5786FE?logo=deepseek)
 <br/>
 [![Build](https://github.com/Cle2ment/RayTracing/actions/workflows/build.yml/badge.svg)](https://github.com/Cle2ment/RayTracing/actions/workflows/build.yml)
 
 ## 概述
 
-一个基于 [Peanut](https://github.com/Cle2ment/Peanut) 应用框架、使用 C++23 构建的实时交互式路径追踪器。**通过 NVIDIA CUDA 进行 GPU 加速**，并**通过 Intel ISPC 进行 CPU 加速**——整个路径追踪管线在 CUDA 可用时运行于 GPU，否则通过 ISPC（AVX2/AVX-512）回退到 CPU SIMD。
+基于 [Peanut](https://github.com/Cle2ment/Peanut) 应用框架、使用 C++23 构建的实时交互式路径追踪器。**通过 NVIDIA CUDA 实现 GPU 加速**，**通过 Intel ISPC 实现 CPU 加速**——当 CUDA 可用时，整个路径追踪管线在 GPU 上运行；否则通过 ISPC（AVX2/AVX-512）提供 SIMD CPU 回退方案。
 
 ### 渲染后端
 
-| 后端 | 加速方式 | 使用条件 |
+| 后端 | 加速器 | 使用条件 |
 |---------|-------------|-----------|
-| **CUDA GPU** | NVIDIA GPU（SM 7.5+） | 检测到 `CUDA_PATH` |
+| **CUDA GPU** | NVIDIA GPU (SM 7.5+) | 检测到 `CUDA_PATH` |
 | **ISPC CPU** | AVX2 + AVX-512 SIMD | 检测到 `vendor/ispc/bin/ispc.exe` |
 | **C++ CPU** | `std::execution::par` 多线程 | 回退方案 |
 
 ### 架构
 
-| 组件 | CPU | GPU（CUDA） |
+| 组件 | CPU | GPU (CUDA) |
 |-----------|-----|------------|
-| 光线生成 | ISPC `foreach` 或 `std::execution::par` | CUDA 内核——每像素一个线程 |
-| 光线-球体相交 | 暴力循环 | `__device__` 函数 |
-| 路径追踪（5次反弹） | GGX 微平面 BRDF | GGX 微平面 BRDF |
-| 随机数生成 | PCG Hash | PCG Hash（`__device__`） |
-| 俄罗斯轮盘赌 | 3次反弹后 | 3次反弹后 |
-| 显示 | Peanut::Image（Vulkan） | Peanut::Image（Vulkan），通过 D2H 拷贝 |
+| 光线生成 | ISPC `foreach` 或 `std::execution::par` | CUDA kernel — 每像素一个线程 |
+| 球体相交 | 暴力循环 | `__device__` 函数 |
+| 路径追踪（5次反弹） | GGX 微表面 BRDF | GGX 微表面 BRDF |
+| 随机数生成 | PCG Hash | PCG Hash (`__device__`) |
+| 俄罗斯轮盘 | 3次反弹后 | 3次反弹后 |
+| 显示 | Peanut::Image (Vulkan) | Peanut::Image (Vulkan) 通过 D2H 拷贝 |
 
-**GPU 内核布局**：16×16 线程块，每个 CUDA 线程对应一个像素。
+**GPU Kernel 布局**：16×16 线程块，每像素一个 CUDA 线程。
 
 ## 快速开始
 
 ```bash
-# 克隆并初始化子模块（推荐）
+# 克隆仓库并包含子模块（推荐）
 git clone --recursive https://github.com/Cle2ment/RayTracing.git
 cd RayTracing
 
-# 如果未使用 --recursive 克隆，手动初始化子模块：
+# 如果克隆时未使用 --recursive，请手动初始化子模块：
 git submodule update --init --recursive
 
-# 一键设置、构建并生成 Visual Studio 解决方案
+# 一键安装、构建并生成 Visual Studio 解决方案
 scripts\Setup.bat
 
 # 运行路径追踪器
@@ -57,27 +57,27 @@ xmake run RayTracing
 
 ## 构建与运行
 
-### 前提条件
+### 前置依赖
 
-| 依赖项 | 必需 | 备注 |
+| 依赖项 | 必需 | 说明 |
 |-----------|----------|-------|
-| [Visual Studio 2026](https://visualstudio.microsoft.com/)（或 2022） | ✅ | C++ 桌面工作负载，MSVC v143+ |
+| [Visual Studio 2026](https://visualstudio.microsoft.com/)（或 2022） | ✅ | 需要 C++ 桌面工作负载，MSVC v143+ |
 | [Vulkan SDK 1.4+](https://vulkan.lunarg.com/) | ✅ | 设置 `VULKAN_SDK` 环境变量 |
 | [CUDA Toolkit 12.0+](https://developer.nvidia.com/cuda-downloads) | 可选 | 设置 `CUDA_PATH`；xmake 自动检测 |
-| [ISPC](https://ispc.github.io/) | 可选 | `Setup.bat` 自动下载至 `vendor/ispc/` |
-| [.NET SDK](https://dotnet.microsoft.com/) | 可选 | 仅用于 `.sln` → `.slnx` 迁移 |
-| [xmake](https://xmake.io/) | 自动 | `Setup.bat` 使用 xmake；若需命令行使用，请全局安装 |
+| [ISPC](https://ispc.github.io/) | 可选 | 由 `Setup.bat` 自动下载至 `vendor/ispc/` |
+| [.NET SDK](https://dotnet.microsoft.com/) | 可选 | 仅用于 `.sln` 到 `.slnx` 迁移 |
+| [xmake](https://xmake.io/) | 自动 | `Setup.bat` 使用 xmake；如需命令行使用请全局安装 |
 
-### 方法一：一键脚本（Setup.bat）
+### 方法一：一键安装（Setup.bat）
 
 ```bash
 scripts\Setup.bat
 ```
 
-此单一命令处理所有步骤：
-1. 检查 Peanut 子模块——若缺失则自动初始化
+单个命令处理所有操作：
+1. 检查 Peanut 子模块——缺失时自动初始化
 2. 配置 xmake（`xmake f -m release`）
-3. 构建所有目标（`xmake build`）—— Peanut.lib + RayTracing.exe
+3. 构建所有目标（`xmake build`）——Peanut.lib + RayTracing.exe
 4. 生成 Visual Studio 解决方案（`xmake project -k vsxmake`）
 5. 通过 `dotnet sln migrate` 将 `.sln` 转换为 `.slnx`
 
@@ -95,7 +95,7 @@ xmake build
 # 运行
 xmake run RayTracing
 
-# 调试构建
+# Debug 构建
 xmake f -m debug
 xmake build
 ```
@@ -103,7 +103,7 @@ xmake build
 ### 方法三：Visual Studio
 
 ```bash
-# 生成 VS 解决方案（在初次构建后）
+# 生成 VS 解决方案（在初始构建之后）
 xmake project -k vsxmake -y -m release
 
 # 转换为 .slnx
@@ -112,7 +112,7 @@ dotnet sln vsxmake2026\RayTracing.sln migrate
 
 在 Visual Studio 中打开 `vsxmake2026\RayTracing.slnx`，将 RayTracing 设置为启动项目，然后按 F5。
 
-> **注意**：编辑 `xmake.lua` 后，重新运行 `xmake project -k vsxmake -y -m release && dotnet sln vsxmake2026\RayTracing.sln migrate` 以刷新 VS 项目文件。
+> **注意**：修改 `xmake.lua` 后，重新运行 `xmake project -k vsxmake -y -m release && dotnet sln vsxmake2026\RayTracing.sln migrate` 以刷新 VS 项目文件。
 
 ### 构建矩阵
 
@@ -126,36 +126,36 @@ dotnet sln vsxmake2026\RayTracing.sln migrate
 
 ```
 RayTracing/
-├── RayTracing/src/             # 应用程序源代码
+├── RayTracing/src/             # 应用程序源码
 │   ├── PeanutApp.cpp           # 入口点、ImGui UI、场景设置
 │   ├── Renderer.h/cpp          # 渲染器（CPU/GPU/ISPC 分发）
 │   ├── Camera.h/cpp            # FPS 相机、光线方向预计算
 │   ├── Ray.h                   # 光线结构体
 │   ├── Scene.h                 # 材质、球体、场景数据
-│   ├── PathTracer.ispc         # ISPC SIMD 路径追踪内核
+│   ├── PathTracer.ispc         # ISPC SIMD 路径追踪核心
 │   ├── CUDATypes.cuh           # GPU 数据结构
 │   ├── CUDARenderer.cuh        # GPU 内核 + 设备函数
-│   ├── CUDARenderer.cu         # CUDA 主机包装器（C 链接）
+│   ├── CUDARenderer.cu         # CUDA 主机封装（C 链接）
 │   ├── CUDARenderer.h          # 主机 C++ 接口 + 打包辅助函数
 │   ├── VkCUDAInterop.h/cpp     # Vulkan-CUDA 零拷贝内存共享
 │   └── OptiXDenoiser.h/cpp     # OptiX AI 降噪器集成
 ├── xmake.lua                   # 构建配置（CUDA + ISPC 检测）
 ├── scripts/
 │   └── Setup.bat               # 一键构建 + 解决方案生成
-├── Peanut/                     # Git 子模块——请勿直接修改
+├── Peanut/                     # Git 子模块（独立分支，可修改以用于通用改进）
 │   ├── Peanut/src/             # Peanut 框架
 │   ├── vendor/GLFW/            # GLFW 窗口管理
 │   ├── vendor/imgui/           # ImGui UI 库
 │   └── vendor/glm/             # GLM 数学库
-├── Directory.Build.props       # VS IntelliSense 配置（MSBuild 自动发现）
+├── Directory.Build.props       # VS IntelliSense 配置（被 MSBuild 自动发现）
 └── .github/workflows/          # CI/CD（构建、发布、翻译）
 ```
 
 ## 快捷键
 
-| 按键 | 功能 |
+| 按键 | 操作 |
 |-----|--------|
-| 鼠标右键 + 拖动 | 旋转相机 |
+| 右键 + 拖动 | 旋转相机 |
 | W/A/S/D | 移动相机 |
 | Q/E | 向下/向上移动 |
 | 渲染按钮 | 触发重新渲染 |
@@ -165,21 +165,21 @@ RayTracing/
 ## 演示
 
 ![随机采样](/screenshots/example-random.png)
-![累积](/screenshots/example-accumulate.png)
+![累积渲染](/screenshots/example-accumulate.png)
 
-## 故障排除
+## 常见问题排查
 
 | 症状 | 原因 | 解决方案 |
 |---------|-------|----------|
 | 找不到 `Peanut\Peanut\src\...` | 子模块未初始化 | `git submodule update --init --recursive` |
-| VS 中找不到 `.vcxproj` | `vsxmake2026\RayTracing.slnx` 已过时 | 重新运行 `scripts\Setup.bat` 或 `xmake project -k vsxmake`，然后 `dotnet sln vsxmake2026\RayTracing.sln migrate` |
-| 视口为黑色 | CUDA 架构不匹配 | 检查 GPU 在 `xmake.lua` 中是否支持 `sm_XX` |
-| `no kernel image is available` | nvcc 未针对你的 GPU | 在 `xmake.lua` 中添加对应的 `add_cugencodes("compute_XX", "sm_XX")` |
-| 未设置 `CUDA_PATH` / `.cu` 未编译 | 缺少环境变量 | 在系统环境变量中设置 `CUDA_PATH`，重启终端 |
-| `cannot match add_files("Peanut\Peanut\src\**.cpp")` | 未运行 `git submodule update --init` | 参见上表第一行 |
-| 找不到 ISPC（无 SIMD） | `vendor/ispc/` 中缺少 ISPC | `Setup.bat` 会自动下载；如有需要，重新运行 |
+| VS 中找不到 `.vcxproj` | `vsxmake2026\RayTracing.slnx` 过期 | 重新运行 `scripts\Setup.bat` 或执行 `xmake project -k vsxmake` 然后 `dotnet sln vsxmake2026\RayTracing.sln migrate` |
+| 视口为黑色 | CUDA 架构不匹配 | 检查 GPU 是否支持 `xmake.lua` 中的 `sm_XX` |
+| `no kernel image is available` | nvcc 未针对您的 GPU 编译 | 在 `xmake.lua` 中添加匹配的 `add_cugencodes("compute_XX", "sm_XX")` |
+| `CUDA_PATH` 未设置 / `.cu` 未编译 | 缺少环境变量 | 在系统环境变量中设置 `CUDA_PATH`，重启终端 |
+| `cannot match add_files("Peanut\Peanut\src\**.cpp")` | 未运行 `git submodule update --init` | 参见上面第一行 |
+| 找不到 ISPC（无 SIMD） | ISPC 不在 `vendor/ispc/` 中 | `Setup.bat` 会自动下载；如有需要重新运行 |
 | `dotnet sln migrate` 失败 | 未安装 .NET SDK | 安装 [.NET SDK](https://dotnet.microsoft.com/) 或直接打开 `vsxmake2026\RayTracing.sln` |
 
-## 许可
+## 许可协议
 
-MIT 许可。详见 [LICENSE](LICENSE)。
+MIT 许可协议。详见 [LICENSE](LICENSE)。
