@@ -15,7 +15,7 @@
         cudaError_t _e = (call);                                               \
         if (_e != cudaSuccess) {                                               \
             std::fprintf(stderr, "[CUDA] Error at %s:%d — %s (code %d)\n",     \
-                         __FILE__, __LINE__, cudaGetErrorString(_e), (int)_e); \
+                         __FILE__, __LINE__, cudaGetErrorString(_e), static_cast<int>(_e)); \
             std::abort();                                                      \
         }                                                                      \
     } while (0)
@@ -25,7 +25,7 @@
         cudaError_t _e = (call);                                               \
         if (_e != cudaSuccess) {                                               \
             std::fprintf(stderr, "[CUDA] Error at %s:%d — %s (code %d)\n",     \
-                         __FILE__, __LINE__, cudaGetErrorString(_e), (int)_e); \
+                         __FILE__, __LINE__, cudaGetErrorString(_e), static_cast<int>(_e)); \
             state->cudaError = true;                                           \
             return;                                                            \
         }                                                                      \
@@ -332,7 +332,7 @@ void CUDARenderer_Render(
         state->d_SampleBuffer,
         state->d_AccumulationBuffer,
         state->d_DenoiseBuffer,
-        state->d_InteropBuffer ? (uint32_t*)state->d_InteropBuffer : state->d_OutputImage,
+        state->d_InteropBuffer ? reinterpret_cast<uint32_t*>(state->d_InteropBuffer) : state->d_OutputImage,
         frameIndex,
         state->pixelCount
     );
@@ -372,8 +372,8 @@ void CUDARenderer_ConvertDenoisedToRGBA(CUDARenderState* state, cudaStream_t str
     int threads = 256;
     int blocks = (state->pixelCount + threads - 1) / threads;
     ConvertToRGBAKernel<<<blocks, threads, 0, stream>>>(
-        (const float4*)state->d_DenoiseBuffer,
-        state->d_InteropBuffer ? (uint32_t*)state->d_InteropBuffer : state->d_OutputImage,
+        reinterpret_cast<const float4*>(state->d_DenoiseBuffer),
+        state->d_InteropBuffer ? reinterpret_cast<uint32_t*>(state->d_InteropBuffer) : state->d_OutputImage,
         state->pixelCount
     );
 }
@@ -403,7 +403,7 @@ void CUDARenderer_DebugFill(CUDARenderState* state)
     );
 
     DebugFillKernel<<<gridDim, blockDim>>>(
-        state->d_InteropBuffer ? (uint32_t*)state->d_InteropBuffer : state->d_OutputImage,
+        state->d_InteropBuffer ? reinterpret_cast<uint32_t*>(state->d_InteropBuffer) : state->d_OutputImage,
         state->imageWidth,
         state->imageHeight
     );

@@ -26,7 +26,7 @@ OptixFunctionTable g_optixFunctionTable_118 = {};
         cudaError_t _e = (call);                                               \
         if (_e != cudaSuccess) {                                               \
             std::fprintf(stderr, "[CUDA] Error at %s:%d — %s (code %d)\n",     \
-                         __FILE__, __LINE__, cudaGetErrorString(_e), (int)_e); \
+                         __FILE__, __LINE__, cudaGetErrorString(_e), static_cast<int>(_e)); \
         }                                                                      \
     } while (0)
 
@@ -107,10 +107,10 @@ bool OptiXDenoiser::Initialize(uint32_t width, uint32_t height, cudaStream_t str
     CUDA_CHECK(cudaMalloc(&m_dHdrIntensity,  sizeof(float)));
 
     OPTIX_CHECK(optixDenoiserSetup(
-        m_denoiser, (CUstream)stream,
+        m_denoiser, reinterpret_cast<CUstream>(stream),
         width, height,
-        (CUdeviceptr)m_dStateBuffer,  m_sizes.stateSizeInBytes,
-        (CUdeviceptr)m_dScratchBuffer, m_sizes.withoutOverlapScratchSizeInBytes));
+        reinterpret_cast<CUdeviceptr>(m_dStateBuffer),  m_sizes.stateSizeInBytes,
+        reinterpret_cast<CUdeviceptr>(m_dScratchBuffer), m_sizes.withoutOverlapScratchSizeInBytes));
 
     m_valid = true;
 
@@ -139,7 +139,7 @@ void OptiXDenoiser::Denoise(float4* d_input, float4* d_output,
         return;
 
     OptixImage2D inputLayer = {};
-    inputLayer.data               = (CUdeviceptr)d_input;
+    inputLayer.data               = reinterpret_cast<CUdeviceptr>(d_input);
     inputLayer.width              = width;
     inputLayer.height             = height;
     inputLayer.rowStrideInBytes   = width * sizeof(float4);
@@ -147,19 +147,19 @@ void OptiXDenoiser::Denoise(float4* d_input, float4* d_output,
     inputLayer.format             = OPTIX_PIXEL_FORMAT_FLOAT4;
 
     OptixImage2D outputLayer = inputLayer;
-    outputLayer.data = (CUdeviceptr)d_output;
+    outputLayer.data = reinterpret_cast<CUdeviceptr>(d_output);
 
     // Compute HDR intensity for brightness normalization
     OPTIX_CHECK(optixDenoiserComputeIntensity(
-        m_denoiser, (CUstream)stream,
+        m_denoiser, reinterpret_cast<CUstream>(stream),
         &inputLayer,
-        (CUdeviceptr)m_dHdrIntensity,
-        (CUdeviceptr)m_dScratchBuffer,
+        reinterpret_cast<CUdeviceptr>(m_dHdrIntensity),
+        reinterpret_cast<CUdeviceptr>(m_dScratchBuffer),
         m_sizes.withoutOverlapScratchSizeInBytes));
 
     OptixDenoiserParams params = {};
     params.blendFactor   = 0.0f;
-    params.hdrIntensity  = (CUdeviceptr)m_dHdrIntensity;
+    params.hdrIntensity  = reinterpret_cast<CUdeviceptr>(m_dHdrIntensity);
 
     OptixDenoiserGuideLayer guideLayer = {};
     OptixDenoiserLayer layer = {};
@@ -167,12 +167,12 @@ void OptiXDenoiser::Denoise(float4* d_input, float4* d_output,
     layer.output = outputLayer;
 
     OPTIX_CHECK(optixDenoiserInvoke(
-        m_denoiser, (CUstream)stream,
+        m_denoiser, reinterpret_cast<CUstream>(stream),
         &params,
-        (CUdeviceptr)m_dStateBuffer, m_sizes.stateSizeInBytes,
+        reinterpret_cast<CUdeviceptr>(m_dStateBuffer), m_sizes.stateSizeInBytes,
         &guideLayer, &layer, 1,
         0, 0,
-        (CUdeviceptr)m_dScratchBuffer,
+        reinterpret_cast<CUdeviceptr>(m_dScratchBuffer),
         m_sizes.withoutOverlapScratchSizeInBytes));
 }
 
