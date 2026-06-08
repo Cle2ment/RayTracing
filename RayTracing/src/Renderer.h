@@ -112,6 +112,7 @@ private:
 #endif
 
 #ifdef PN_ISPC
+	uint32_t m_LastISPCSceneVersion = UINT32_MAX;  // Track scene changes to skip SoA repacking
 	// ISPC SoA packing buffers (reused across frames to avoid reallocation)
 	std::vector<float> m_ISPCRayDirX, m_ISPCRayDirY, m_ISPCRayDirZ;
 	std::vector<float> m_ISCPSphPosX, m_ISCPSphPosY, m_ISCPSphPosZ;
