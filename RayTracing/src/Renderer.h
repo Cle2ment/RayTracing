@@ -98,7 +98,7 @@ private:
 	bool m_RayDirsDirty = true;  // Tracks if ray directions need re-upload to GPU
 
 #ifdef PN_CUDA
-	CUDARenderState* m_CUDAState = nullptr;
+	std::unique_ptr<CUDARenderState, CUDARenderStateDeleter> m_CUDAState;
 	std::unique_ptr<VkCUDAInterop> m_Interop;
 	bool m_InteropEnabled = false;
 	std::vector<GPUPackedSphere>   m_GPUSpheres;

@@ -128,16 +128,7 @@ Renderer::Renderer()
 #endif
 }
 
-Renderer::~Renderer()
-{
-#ifdef PN_CUDA
-	if (m_CUDAState)
-	{
-		CUDARenderer_Destroy(m_CUDAState);
-		m_CUDAState = nullptr;
-	}
-#endif
-}
+Renderer::~Renderer() = default;
 
 // ──────────────────────────────────────────────
 // OnResize (shared between CPU and GPU paths)
@@ -181,16 +172,16 @@ void Renderer::OnResize(uint32_t width, uint32_t height)
 	static bool cudaInitialized = false;
 	if (!cudaInitialized && m_CUDAState)
 	{
-		if (CUDARenderer_Init(m_CUDAState))
+		if (CUDARenderer_Init(m_CUDAState.get()))
 		{
 			cudaInitialized = true;
-			CUDARenderer_SetSettings(m_CUDAState, 5);
+			CUDARenderer_SetSettings(m_CUDAState.get(), 5);
 		}
 	}
 
 	if (cudaInitialized)
 	{
-		CUDARenderer_OnResize(m_CUDAState, width, height);
+		CUDARenderer_OnResize(m_CUDAState.get(), width, height);
 
 		// Recreate interop buffer on resize when enabled
 		if (m_InteropEnabled)
@@ -198,7 +189,7 @@ void Renderer::OnResize(uint32_t width, uint32_t height)
 			try { m_Interop = std::make_unique<VkCUDAInterop>(width, height); }
 		catch (...) { std::fprintf(stderr, "[Interop] Failed to create VkCUDAInterop on resize\n"); m_Interop.reset(); m_InteropEnabled = false; }
 			if (m_Interop)
-				CUDARenderer_SetOutputBuffer(m_CUDAState, m_Interop->GetCUDADevicePtr());
+				CUDARenderer_SetOutputBuffer(m_CUDAState.get(), m_Interop->GetCUDADevicePtr());
 		}
 	}
 #endif
@@ -654,7 +645,7 @@ void Renderer::UploadSceneToGPU(const Scene& scene)
 	}
 
 	CUDARenderer_UploadScene(
-		m_CUDAState,
+		m_CUDAState.get(),
 		m_GPUSpheres.data(),
 		static_cast<uint32_t>(m_GPUSpheres.size()),
 		m_GPUMaterials.data(),
@@ -680,7 +671,7 @@ void Renderer::RenderGPU(const Scene& scene, const Camera& camera)
 			try
 			{
 				m_Interop = std::make_unique<VkCUDAInterop>(width, height);
-				CUDARenderer_SetOutputBuffer(m_CUDAState, m_Interop->GetCUDADevicePtr());
+				CUDARenderer_SetOutputBuffer(m_CUDAState.get(), m_Interop->GetCUDADevicePtr());
 			}
 			catch (...)
 			{
@@ -693,7 +684,7 @@ void Renderer::RenderGPU(const Scene& scene, const Camera& camera)
 		else
 		{
 			m_Interop.reset();
-			CUDARenderer_SetOutputBuffer(m_CUDAState, nullptr);
+			CUDARenderer_SetOutputBuffer(m_CUDAState.get(), nullptr);
 		}
 	}
 
@@ -707,7 +698,7 @@ void Renderer::RenderGPU(const Scene& scene, const Camera& camera)
 	// Upload camera position
 	const glm::vec3& camPos = camera.GetPosition();
 	CUDARenderer_SetCameraPosition(
-		m_CUDAState, camPos.x, camPos.y, camPos.z
+		m_CUDAState.get(), camPos.x, camPos.y, camPos.z
 	);
 
 	// Upload ray directions — only when camera moved or viewport resized
@@ -722,7 +713,7 @@ void Renderer::RenderGPU(const Scene& scene, const Camera& camera)
 			m_GPURayDirs[i].z = rayDirs[i].z;
 		}
 		CUDARenderer_UploadRayDirections(
-			m_CUDAState,
+			m_CUDAState.get(),
 			m_GPURayDirs.data(),
 			static_cast<uint32_t>(m_GPURayDirs.size())
 		);
@@ -731,26 +722,26 @@ void Renderer::RenderGPU(const Scene& scene, const Camera& camera)
 
 	// Update settings
 	CUDARenderer_SetSettings(
-		m_CUDAState,
+		m_CUDAState.get(),
 		5  // MaxBounces
 	);
 
 	// Launch CUDA render kernel
-	CUDARenderer_Render(m_CUDAState, m_FrameIndex);
+	CUDARenderer_Render(m_CUDAState.get(), m_FrameIndex);
 
 #ifdef PN_OPTIX
 	// Denoise pass: run OptiX on the averaged HDR buffer, then re-convert to RGBA
 	if (m_Settings.EnableDenoising)
 	{
-		cudaStream_t stream = (cudaStream_t)CUDARenderer_GetComputeStream(m_CUDAState);
+		cudaStream_t stream = (cudaStream_t)CUDARenderer_GetComputeStream(m_CUDAState.get());
 		if (!m_Denoiser.IsValid())
 			m_Denoiser.Initialize(width, height, stream);
 
-		float4* d_denoiseBuf = (float4*)CUDARenderer_GetDenoiseBuffer(m_CUDAState);
+		float4* d_denoiseBuf = (float4*)CUDARenderer_GetDenoiseBuffer(m_CUDAState.get());
 		if (d_denoiseBuf && m_Denoiser.IsValid())
 		{
 			m_Denoiser.Denoise(d_denoiseBuf, d_denoiseBuf, width, height, stream);
-			CUDARenderer_ConvertDenoisedToRGBA(m_CUDAState, stream);
+			CUDARenderer_ConvertDenoisedToRGBA(m_CUDAState.get(), stream);
 		}
 	}
 #endif
@@ -758,12 +749,12 @@ void Renderer::RenderGPU(const Scene& scene, const Camera& camera)
 	// Download output image from GPU (skip D2H when interop writes directly to Vulkan)
 	if (m_InteropEnabled && m_Interop)
 	{
-		m_Interop->SyncCUDAComplete((cudaStream_t)CUDARenderer_GetComputeStream(m_CUDAState));
+		m_Interop->SyncCUDAComplete((cudaStream_t)CUDARenderer_GetComputeStream(m_CUDAState.get()));
 	}
 	else
 	{
 		CUDARenderer_GetOutput(
-			m_CUDAState,
+			m_CUDAState.get(),
 			m_ImageData.data(),
 			width * height * sizeof(uint32_t)
 		);
