@@ -28,7 +28,7 @@ RayTracing/
 ├── Directory.Build.props   # VS IntelliSense config (auto-discovered by MSBuild)
 ├── scripts/Setup.bat       # xmake build + vsxmake solution generator
 ├── .github/workflows/      # CI: CUDA 13.3 + Vulkan 1.4.309 + xmake build
-└── Peanut/                 # Submodule (Cle2ment/Peanut fork) — do NOT modify vendor/
+└── Peanut/                 # Submodule (Cle2ment/Peanut fork) — modifiable for general-purpose improvements
 ```
 
 ## WHERE TO LOOK
@@ -136,7 +136,7 @@ RayTracing/
 
 ## ANTI-PATTERNS
 
-- **NEVER modify Peanut library files** — extend via `ExampleLayer` subclass (exceptions: Vulkan extensions require minimal changes to `Application.cpp`/`Image.h`; Peanut bugfixes listed in PHASE 2 are explicit exceptions)
+- **Peanut may be modified freely** — it is an independent fork (diverged from Walnut), no upstream merge requirement. Changes should prioritize general-purpose improvements (new features, performance, bugfixes) usable by any Peanut application. Avoid RayTracing-specific logic in Peanut; keep domain-specific code in `RayTracing/src/`.
 - **NEVER suppress CUDA errors** — always check `cudaMalloc`/`cudaMemcpy`/`cudaStreamCreate` return values
 - **NEVER assume scene data is synced to GPU** — increment `Scene::Version` on any scene change
 - **NEVER change `GPUPacked*` struct layout without updating `GPUMaterial`/`GPUSphere` in `CUDATypes.cuh`**
@@ -204,7 +204,7 @@ dotnet sln vsxmake2026\RayTracing.sln migrate
 - **PN_* macros** (formerly WL_*) — `PN_CUDA`, `PN_OPTIX`, `PN_ISPC`, `PN_PLATFORM_WINDOWS`, `PN_DEBUG`, `PN_RELEASE`.
 - **CUDA arch fallback** — if nvcc fails, check GPU compute capability matches `sm_XX` in `xmake.lua:130-133`
 - **ISPC arch fallback** — if ISPC not found, CPU path falls back to C++ `std::execution::par` (no SIMD)
-- **Peanut submodule** — upstream fork: `https://github.com/Cle2ment/Peanut`
+- **Peanut submodule** — independent fork: `https://github.com/Cle2ment/Peanut` (diverged from Walnut; freely modifiable for general-purpose improvements)
 - **ISPC download** — `scripts\Setup.bat` auto-downloads to `vendor\ispc\`; manual: https://github.com/ispc/ispc/releases/tag/v1.30.0
 - **OptiX denoiser** — requires OptiX SDK 7.0+; detected via `OptiX_ROOT` or `OPTIX_PATH` env var
 - **Vulkan-CUDA interop** — Windows-only (Win32 external memory handles); toggle via ImGui checkbox

@@ -142,7 +142,7 @@ RayTracing/
 ├── xmake.lua                   # Build config (CUDA + ISPC detection)
 ├── scripts/
 │   └── Setup.bat               # One-click build + solution generation
-├── Peanut/                     # Git submodule — DO NOT modify directly
+├── Peanut/                     # Git submodule (independent fork, modifiable for general-purpose improvements)
 │   ├── Peanut/src/             # Peanut framework
 │   ├── vendor/GLFW/            # GLFW windowing
 │   ├── vendor/imgui/           # ImGui UI library
