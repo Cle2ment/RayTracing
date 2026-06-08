@@ -86,8 +86,8 @@ void VkCUDAInterop::ExportToCUDA()
 {
     VkDevice device = Peanut::Application::GetDevice();
 
-    auto vkGetMemoryWin32HandleKHR = (PFN_vkGetMemoryWin32HandleKHR)
-        vkGetDeviceProcAddr(device, "vkGetMemoryWin32HandleKHR");
+    auto vkGetMemoryWin32HandleKHR = reinterpret_cast<PFN_vkGetMemoryWin32HandleKHR>(
+        vkGetDeviceProcAddr(device, "vkGetMemoryWin32HandleKHR"));
     if (!vkGetMemoryWin32HandleKHR)
         throw std::runtime_error("VkCUDAInterop: vkGetMemoryWin32HandleKHR not available");
 
