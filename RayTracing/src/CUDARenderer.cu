@@ -138,14 +138,32 @@ int CUDARenderer_Init(CUDARenderState* state)
     }
 
     cudaDeviceProp prop;
-    CUDA_CHECK(cudaGetDeviceProperties(&prop, 0));
+    err = cudaGetDeviceProperties(&prop, 0);
+    if (err != cudaSuccess)
+    {
+		std::fprintf(stderr, "[CUDA] Failed to get device properties: %s\n",
+			cudaGetErrorString(err));
+        return 0;
+    }
 	std::printf("[CUDA] Using device: %s (Compute %d.%d, %zu MB)\n",
 	   prop.name, prop.major, prop.minor,
 	   prop.totalGlobalMem / (1024 * 1024));
 
     state->initialized = true;
-    CUDA_CHECK(cudaStreamCreate(&state->uploadStream));
-    CUDA_CHECK(cudaStreamCreate(&state->computeStream));
+    err = cudaStreamCreate(&state->uploadStream);
+    if (err != cudaSuccess)
+    {
+		std::fprintf(stderr, "[CUDA] Failed to create upload stream: %s\n",
+			cudaGetErrorString(err));
+        return 0;
+    }
+    err = cudaStreamCreate(&state->computeStream);
+    if (err != cudaSuccess)
+    {
+		std::fprintf(stderr, "[CUDA] Failed to create compute stream: %s\n",
+			cudaGetErrorString(err));
+        return 0;
+    }
     state->streamsCreated = true;
     return 1;
 }
