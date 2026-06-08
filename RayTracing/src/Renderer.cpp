@@ -124,7 +124,7 @@ namespace Utils
 Renderer::Renderer()
 {
 #ifdef PN_CUDA
-	m_CUDAState = CUDARenderer_Create();
+	m_CUDAState.reset(CUDARenderer_Create());
 #endif
 }
 
