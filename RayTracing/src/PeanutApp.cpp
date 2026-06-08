@@ -100,6 +100,8 @@ public:
 			m_NeedsRender = true;
 		if (ImGui::Checkbox("Slow Random", &m_Renderer.GetSettings().SlowRandom))
 			m_NeedsRender = true;
+		if (ImGui::SliderInt("Max Bounces", &m_Renderer.GetSettings().MaxBounces, 1, 20))
+			m_NeedsRender = true;
 #ifdef PN_OPTIX
 		if (ImGui::Checkbox("Denoise", &m_Renderer.GetSettings().EnableDenoising))
 			m_NeedsRender = true;
