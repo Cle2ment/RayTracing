@@ -232,53 +232,61 @@ void Renderer::Render(const Scene& scene, const Camera& camera)
 		const glm::vec3& camPos = camera.GetPosition();
 
 		// ── Pack ray directions into SoA flat arrays ──
-		m_ISPCRayDirX.resize(pixelCount);
-		m_ISPCRayDirY.resize(pixelCount);
-		m_ISPCRayDirZ.resize(pixelCount);
-		for (uint32_t i = 0; i < pixelCount; i++) {
-			m_ISPCRayDirX[i] = rayDirs[i].x;
-			m_ISPCRayDirY[i] = rayDirs[i].y;
-			m_ISPCRayDirZ[i] = rayDirs[i].z;
+		if (m_RayDirsDirty)
+		{
+			m_ISPCRayDirX.resize(pixelCount);
+			m_ISPCRayDirY.resize(pixelCount);
+			m_ISPCRayDirZ.resize(pixelCount);
+			for (uint32_t i = 0; i < pixelCount; i++) {
+				m_ISPCRayDirX[i] = rayDirs[i].x;
+				m_ISPCRayDirY[i] = rayDirs[i].y;
+				m_ISPCRayDirZ[i] = rayDirs[i].z;
+			}
+			m_RayDirsDirty = false;
 		}
 
 		// ── Pack scene spheres (SoA layout) ──
 		const uint32_t sphereCount = static_cast<uint32_t>(scene.Spheres.size());
-		m_ISCPSphPosX.resize(sphereCount);
-		m_ISCPSphPosY.resize(sphereCount);
-		m_ISCPSphPosZ.resize(sphereCount);
-		m_ISCPSphRadius.resize(sphereCount);
-		m_ISCPSphMatIdx.resize(sphereCount);
-		for (uint32_t i = 0; i < sphereCount; i++) {
-			const auto& s = scene.Spheres[i];
-			m_ISCPSphPosX[i]   = s.Position.x;
-			m_ISCPSphPosY[i]   = s.Position.y;
-			m_ISCPSphPosZ[i]   = s.Position.z;
-			m_ISCPSphRadius[i] = s.Radius;
-			m_ISCPSphMatIdx[i] = s.MaterialIndex;
-		}
+		if (scene.Version != m_LastISPCSceneVersion)
+		{
+			m_ISCPSphPosX.resize(sphereCount);
+			m_ISCPSphPosY.resize(sphereCount);
+			m_ISCPSphPosZ.resize(sphereCount);
+			m_ISCPSphRadius.resize(sphereCount);
+			m_ISCPSphMatIdx.resize(sphereCount);
+			for (uint32_t i = 0; i < sphereCount; i++) {
+				const auto& s = scene.Spheres[i];
+				m_ISCPSphPosX[i]   = s.Position.x;
+				m_ISCPSphPosY[i]   = s.Position.y;
+				m_ISCPSphPosZ[i]   = s.Position.z;
+				m_ISCPSphRadius[i] = s.Radius;
+				m_ISCPSphMatIdx[i] = s.MaterialIndex;
+			}
 
 		// ── Pack materials (SoA layout) ──
 		const uint32_t matCount = static_cast<uint32_t>(scene.Materials.size());
-		m_ISPCMatAlbedoR.resize(matCount);
-		m_ISPCMatAlbedoG.resize(matCount);
-		m_ISPCMatAlbedoB.resize(matCount);
-		m_ISPCMatRoughness.resize(matCount);
-		m_ISPCMatMetallic.resize(matCount);
-		m_ISPCMatEmissionR.resize(matCount);
-		m_ISPCMatEmissionG.resize(matCount);
-		m_ISPCMatEmissionB.resize(matCount);
-		m_ISPCMatEmissionPower.resize(matCount);
-		for (uint32_t i = 0; i < matCount; i++) {
-			const auto& m = scene.Materials[i];
-			m_ISPCMatAlbedoR[i]      = m.Albedo.x;
-			m_ISPCMatAlbedoG[i]      = m.Albedo.y;
-			m_ISPCMatAlbedoB[i]      = m.Albedo.z;
-			m_ISPCMatRoughness[i]    = m.Roughness;
-			m_ISPCMatMetallic[i]     = m.Metallic;
-			m_ISPCMatEmissionR[i]    = m.EmissionColor.x;
-			m_ISPCMatEmissionG[i]    = m.EmissionColor.y;
-			m_ISPCMatEmissionB[i]    = m.EmissionColor.z;
-			m_ISPCMatEmissionPower[i] = m.EmissionPower;
+			m_ISPCMatAlbedoR.resize(matCount);
+			m_ISPCMatAlbedoG.resize(matCount);
+			m_ISPCMatAlbedoB.resize(matCount);
+			m_ISPCMatRoughness.resize(matCount);
+			m_ISPCMatMetallic.resize(matCount);
+			m_ISPCMatEmissionR.resize(matCount);
+			m_ISPCMatEmissionG.resize(matCount);
+			m_ISPCMatEmissionB.resize(matCount);
+			m_ISPCMatEmissionPower.resize(matCount);
+			for (uint32_t i = 0; i < matCount; i++) {
+				const auto& m = scene.Materials[i];
+				m_ISPCMatAlbedoR[i]      = m.Albedo.x;
+				m_ISPCMatAlbedoG[i]      = m.Albedo.y;
+				m_ISPCMatAlbedoB[i]      = m.Albedo.z;
+				m_ISPCMatRoughness[i]    = m.Roughness;
+				m_ISPCMatMetallic[i]     = m.Metallic;
+				m_ISPCMatEmissionR[i]    = m.EmissionColor.x;
+				m_ISPCMatEmissionG[i]    = m.EmissionColor.y;
+				m_ISPCMatEmissionB[i]    = m.EmissionColor.z;
+				m_ISPCMatEmissionPower[i] = m.EmissionPower;
+			}
+			m_LastISPCSceneVersion = scene.Version;
 		}
 
 		// ── Output buffers ──
