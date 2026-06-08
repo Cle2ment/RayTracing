@@ -366,7 +366,7 @@ void Renderer::Render(const Scene& scene, const Camera& camera)
 	}
 #endif
 #endif // PN_ISPC
-#endif // !PN_CUDA
+#endif // PN_CUDA
 
 #ifdef PN_CUDA
 	if (m_InteropEnabled && m_Interop)
