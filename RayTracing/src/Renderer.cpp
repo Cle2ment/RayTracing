@@ -10,6 +10,8 @@
 #include <execution>
 #include <limits>
 #include <ranges>
+#include <numeric>
+#include "Constants.h"
 
 #ifdef PN_ISPC
 #include "PathTracer_ispc.h"
@@ -81,14 +83,14 @@ namespace Utils
 	{
 		float a2 = a * a;
 		float d = NdotH * NdotH * (a2 - 1.0f) + 1.0f;
-		return a2 / (glm::pi<float>() * d * d);
+		return a2 / (kPi * d * d);
 	}
 
 	static float GGX_G1(float NdotV, float a)
 	{
 		float a2 = a * a;
 		float denom = NdotV + glm::sqrt(NdotV * NdotV * (1.0f - a2) + a2);
-		return 2.0f * NdotV / glm::max(denom, 0.0001f);
+		return 2.0f * NdotV / glm::max(denom, kDenominatorEpsilon);
 	}
 
 	static float GGX_G(float NdotL, float NdotV, float a)
@@ -104,7 +106,7 @@ namespace Utils
 		glm::vec3 T2 = glm::cross(Vh, T1);
 
 		float r = glm::sqrt(r1);
-		float phi = 2.0f * glm::pi<float>() * r2;
+		float phi = 2.0f * kPi * r2;
 		float t1 = r * glm::cos(phi);
 		float t2 = r * glm::sin(phi);
 		float s = 0.5f * (1.0f + Vh.z);
@@ -161,10 +163,8 @@ void Renderer::OnResize(uint32_t width, uint32_t height)
 	m_ImageHorizontalIterator.resize(width);
 	m_ImageVerticalIterator.resize(height);
 
-	for (uint32_t i = 0; i < width; i++)
-		m_ImageHorizontalIterator[i] = i;
-	for (uint32_t i = 0; i < height; i++)
-		m_ImageVerticalIterator[i] = i;
+	std::iota(m_ImageHorizontalIterator.begin(), m_ImageHorizontalIterator.end(), 0u);
+	std::iota(m_ImageVerticalIterator.begin(), m_ImageVerticalIterator.end(), 0u);
 #endif
 
 #ifdef PN_CUDA
@@ -323,47 +323,47 @@ void Renderer::Render(const Scene& scene, const Camera& camera)
 	}
 #else
 	// ── C++ Scalar / std::execution::par Fallback ──
-#define MT 1
-#if MT
-	std::for_each(
-		std::execution::par,
-		m_ImageVerticalIterator.begin(), m_ImageVerticalIterator.end(),
-		[this](uint32_t y)
+	static constexpr bool kMultithreaded = true;
+	if constexpr (kMultithreaded) {
+		std::for_each(
+			std::execution::par,
+			m_ImageVerticalIterator.begin(), m_ImageVerticalIterator.end(),
+			[this](uint32_t y)
+			{
+				std::ranges::for_each(
+					m_ImageHorizontalIterator.begin(), m_ImageHorizontalIterator.end(),
+					[this, y, width = m_FinalImage->GetWidth()](const uint32_t x)
+					{
+						const glm::vec4 color = PerPixel(x, y);
+						const uint32_t idx = x + y * width;
+
+						m_AccumulationData[idx] += color;
+
+						glm::vec4 accumulatedColor = m_AccumulationData[idx];
+						accumulatedColor /= static_cast<float>(m_FrameIndex);
+
+						accumulatedColor = glm::clamp(
+							accumulatedColor,
+							glm::vec4(0.0f), glm::vec4(1.0f)
+						);
+						m_ImageData[idx]
+							= Utils::ConvertToRGBA(accumulatedColor);
+					});
+			});
+	} else {
+		for (uint32_t y = 0; y < m_FinalImage->GetHeight(); y++)
 		{
-			std::ranges::for_each(
-				m_ImageHorizontalIterator.begin(), m_ImageHorizontalIterator.end(),
-				[this, y, width = m_FinalImage->GetWidth()](const uint32_t x)
-				{
-					const glm::vec4 color = PerPixel(x, y);
-					const uint32_t idx = x + y * width;
-
-					m_AccumulationData[idx] += color;
-
-					glm::vec4 accumulatedColor = m_AccumulationData[idx];
-					accumulatedColor /= static_cast<float>(m_FrameIndex);
-
-					accumulatedColor = glm::clamp(
-						accumulatedColor,
-						glm::vec4(0.0f), glm::vec4(1.0f)
-					);
-					m_ImageData[idx]
-						= Utils::ConvertToRGBA(accumulatedColor);
-				});
-		});
-#else
-	for (uint32_t y = 0; y < m_FinalImage->GetHeight(); y++)
-	{
-		for (uint32_t x = 0; x < m_FinalImage->GetWidth(); x++)
-		{
-			glm::vec4 color = PerPixel(x, y);
-			m_AccumulationData[x + y * m_FinalImage->GetWidth()] += color;
-			glm::vec4 accumulatedColor = m_AccumulationData[x + y * m_FinalImage->GetWidth()];
-			accumulatedColor /= static_cast<float>(m_FrameIndex);
-			accumulatedColor = glm::clamp(accumulatedColor, glm::vec4(0.0f), glm::vec4(1.0f));
-			m_ImageData[x + y * m_FinalImage->GetWidth()] = Utils::ConvertToRGBA(accumulatedColor);
+			for (uint32_t x = 0; x < m_FinalImage->GetWidth(); x++)
+			{
+				glm::vec4 color = PerPixel(x, y);
+				m_AccumulationData[x + y * m_FinalImage->GetWidth()] += color;
+				glm::vec4 accumulatedColor = m_AccumulationData[x + y * m_FinalImage->GetWidth()];
+				accumulatedColor /= static_cast<float>(m_FrameIndex);
+				accumulatedColor = glm::clamp(accumulatedColor, glm::vec4(0.0f), glm::vec4(1.0f));
+				m_ImageData[x + y * m_FinalImage->GetWidth()] = Utils::ConvertToRGBA(accumulatedColor);
+			}
 		}
 	}
-#endif
 #endif // PN_ISPC
 #endif // PN_CUDA
 
@@ -488,17 +488,17 @@ glm::vec4 Renderer::PerPixel(uint32_t x, uint32_t y) const
 		{
 			// Use luminance (BT.709) for survival probability: fairer than max(channel)
 		const float p = 0.2126f * contribution.r + 0.7152f * contribution.g + 0.0722f * contribution.b;
-			if (p < 0.001f || (p < 1.0f && Utils::RandomFloat(seed) > p))
+			if (p < kRussianRouletteThreshold || (p < 1.0f && Utils::RandomFloat(seed) > p))
 				break;
 			contribution /= p;
 		}
 
-		ray.Origin = WorldPosition + WorldNormal * 0.0001f;
+		ray.Origin = WorldPosition + WorldNormal * kSelfIntersectionEpsilon;
 
 		// ── GGX Microfacet BRDF ──
 		const glm::vec3 w_o = -ray.Direction;
 		const glm::vec3 F0 = glm::mix(glm::vec3(0.04f), material.Albedo, material.Metallic);
-		const float rough = glm::max(material.Roughness, 0.001f);
+		const float rough = glm::max(material.Roughness, kRoughnessMin);
 		const float a = rough * rough;
 
 		// Build ONB from surface normal (Duff et al. 2017)
@@ -512,7 +512,7 @@ glm::vec4 Renderer::PerPixel(uint32_t x, uint32_t y) const
 
 		const float r1 = Utils::RandomFloat(seed), r2 = Utils::RandomFloat(seed);
 		const glm::vec3 localH = Utils::SampleGGX_VNDF(glm::vec3(localWoX, localWoY, localWoZ), a, r1, r2);
-		const float NdotH = glm::max(localH.z, 0.001f);
+		const float NdotH = glm::max(localH.z, kNdotMin);
 		float WoDotH = localWoX*localH.x + localWoY*localH.y + localWoZ*localH.z;
 
 		// Reflect in local frame: wi = 2*(wo·H)*H - wo
@@ -521,8 +521,8 @@ glm::vec4 Renderer::PerPixel(uint32_t x, uint32_t y) const
 			2.0f * WoDotH * localH.y - localWoY,
 			2.0f * WoDotH * localH.z - localWoZ
 		);
-		const float NdotL = glm::max(localWi.z, 0.001f);
-		const float NdotV = glm::max(localWoZ, 0.001f);
+		const float NdotL = glm::max(localWi.z, kNdotMin);
+		const float NdotV = glm::max(localWoZ, kNdotMin);
 
 		// Transform wi back to world
 		const glm::vec3 wi = u*localWi.x + v*localWi.y + w*localWi.z;
@@ -532,12 +532,12 @@ glm::vec4 Renderer::PerPixel(uint32_t x, uint32_t y) const
 		const float  G = G1_v * Utils::GGX_G1(NdotL, a);
 		const glm::vec3 F = Utils::FresnelSchlick(WoDotH, F0);
 
-		const glm::vec3 specBRDF = D * G * F / (4.0f * NdotL * NdotV + 0.001f);
+		const glm::vec3 specBRDF = D * G * F / (4.0f * NdotL * NdotV + kSpecDenominatorEps);
 		const glm::vec3 kD = (glm::vec3(1.0f) - F) * (1.0f - material.Metallic);
-		const glm::vec3 diffBRDF = kD * material.Albedo / glm::pi<float>();
+		const glm::vec3 diffBRDF = kD * material.Albedo / kPi;
 
 		// VNDF-correct PDF includes G1 for zero-variance at grazing angles
-		const float pdf = glm::max(G1_v * D / (4.0f * NdotV + 0.001f), 0.001f);
+		const float pdf = glm::max(G1_v * D / (4.0f * NdotV + kSpecDenominatorEps), kNdotMin);
 
 		const glm::vec3 bsdf = (specBRDF + diffBRDF) * NdotL;
 		contribution *= bsdf / pdf;
