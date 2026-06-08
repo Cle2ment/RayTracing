@@ -1,19 +1,36 @@
 #include "CUDARenderer.cuh"
 
 #include <cstdio>
+#include <cstdlib>
 // NOTE: std::print / std::println (C++23 <print>) is not available here
 // because NVCC cannot forward --std=c++23 to the MSVC host compiler.
 // MSVC only supports /std:c++latest (not /std:c++23), so NVCC falls back.
 
 // ─── CUDA Error Checking Macro ───
+// Debug:  abort immediately for fast bug detection
+// Release: mark error flag in state, let host code gracefully fall back to CPU
+#ifdef PN_DEBUG
 #define CUDA_CHECK(call)                                                       \
     do {                                                                       \
         cudaError_t _e = (call);                                               \
         if (_e != cudaSuccess) {                                               \
             std::fprintf(stderr, "[CUDA] Error at %s:%d — %s (code %d)\n",     \
                          __FILE__, __LINE__, cudaGetErrorString(_e), (int)_e); \
+            std::abort();                                                      \
         }                                                                      \
     } while (0)
+#else
+#define CUDA_CHECK(call)                                                       \
+    do {                                                                       \
+        cudaError_t _e = (call);                                               \
+        if (_e != cudaSuccess) {                                               \
+            std::fprintf(stderr, "[CUDA] Error at %s:%d — %s (code %d)\n",     \
+                         __FILE__, __LINE__, cudaGetErrorString(_e), (int)_e); \
+            state->cudaError = true;                                           \
+            return;                                                            \
+        }                                                                      \
+    } while (0)
+#endif
 
 // ──────────────────────────────────────────────
 // Host wrapper functions (C linkage for interop)
@@ -48,6 +65,7 @@ struct CUDARenderState
     cudaStream_t uploadStream;      // Async stream for H2D transfers
     cudaStream_t computeStream;     // Async stream for kernel launches
     bool streamsCreated;
+    bool cudaError;                    // Set on CUDA error (Release: skip GPU ops; Debug: abort)
 
     bool initialized;
 };
@@ -55,6 +73,7 @@ struct CUDARenderState
 CUDARenderState* CUDARenderer_Create()
 {
     CUDARenderState* state = new CUDARenderState();
+    state->cudaError = false;
     state->initialized = false;
 
     state->d_SampleBuffer = nullptr;
@@ -76,7 +95,7 @@ CUDARenderState* CUDARenderer_Create()
     return state;
 }
 
-void CUDARenderer_Destroy(CUDARenderState const* state)
+void CUDARenderer_Destroy(CUDARenderState* state)
 {
     if (!state) return;
 
@@ -119,14 +138,32 @@ int CUDARenderer_Init(CUDARenderState* state)
     }
 
     cudaDeviceProp prop;
-    CUDA_CHECK(cudaGetDeviceProperties(&prop, 0));
+    err = cudaGetDeviceProperties(&prop, 0);
+    if (err != cudaSuccess)
+    {
+		std::fprintf(stderr, "[CUDA] Failed to get device properties: %s\n",
+			cudaGetErrorString(err));
+        return 0;
+    }
 	std::printf("[CUDA] Using device: %s (Compute %d.%d, %zu MB)\n",
 	   prop.name, prop.major, prop.minor,
 	   prop.totalGlobalMem / (1024 * 1024));
 
     state->initialized = true;
-    CUDA_CHECK(cudaStreamCreate(&state->uploadStream));
-    CUDA_CHECK(cudaStreamCreate(&state->computeStream));
+    err = cudaStreamCreate(&state->uploadStream);
+    if (err != cudaSuccess)
+    {
+		std::fprintf(stderr, "[CUDA] Failed to create upload stream: %s\n",
+			cudaGetErrorString(err));
+        return 0;
+    }
+    err = cudaStreamCreate(&state->computeStream);
+    if (err != cudaSuccess)
+    {
+		std::fprintf(stderr, "[CUDA] Failed to create compute stream: %s\n",
+			cudaGetErrorString(err));
+        return 0;
+    }
     state->streamsCreated = true;
     return 1;
 }
@@ -134,6 +171,7 @@ int CUDARenderer_Init(CUDARenderState* state)
 void CUDARenderer_OnResize(CUDARenderState* state, uint32_t width, uint32_t height)
 {
     if (!state || !state->initialized) return;
+    if (state->cudaError) return;
 
     if (state->imageWidth == width && state->imageHeight == height)
         return;

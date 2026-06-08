@@ -17,7 +17,7 @@ typedef struct CUDARenderState CUDARenderState;
 
 // Lifecycle
 CUDARenderState* CUDARenderer_Create(void);
-void             CUDARenderer_Destroy(CUDARenderState const* state);
+void             CUDARenderer_Destroy(CUDARenderState* state);
 int              CUDARenderer_Init(CUDARenderState* state);
 void             CUDARenderer_CheckError(const char* file, int line);
 
@@ -81,7 +81,17 @@ void CUDARenderer_DebugFill(CUDARenderState* state);
 
 #ifdef __cplusplus
 
+#include <memory>
 #include <cstdint>
+
+// RAII deleter for CUDARenderState
+struct CUDARenderStateDeleter
+{
+    void operator()(CUDARenderState* state) const
+    {
+        CUDARenderer_Destroy(state);
+    }
+};
 
 // C++-compatible float3 (matches CUDA float3 layout: 12 bytes, alignment 4)
 // Only define when CUDA's float3 from cuda_runtime.h is not already available

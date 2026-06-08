@@ -89,14 +89,16 @@ private:
 	const Scene* m_ActiveScene = nullptr;
 	const Camera* m_ActiveCamera = nullptr;
 
-	uint32_t* m_ImageData = nullptr;
-	glm::vec4* m_AccumulationData = nullptr;
+	std::vector<uint32_t>  m_ImageData;
+	#ifndef PN_CUDA
+	std::vector<glm::vec4> m_AccumulationData;
+	#endif
 
 	uint32_t m_FrameIndex = 1;
 	bool m_RayDirsDirty = true;  // Tracks if ray directions need re-upload to GPU
 
 #ifdef PN_CUDA
-	CUDARenderState* m_CUDAState = nullptr;
+	std::unique_ptr<CUDARenderState, CUDARenderStateDeleter> m_CUDAState;
 	std::unique_ptr<VkCUDAInterop> m_Interop;
 	bool m_InteropEnabled = false;
 	std::vector<GPUPackedSphere>   m_GPUSpheres;
