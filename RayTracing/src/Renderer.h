@@ -25,12 +25,12 @@ public:
 	struct Settings
 	{
 		bool Accumulate = true;
-		bool SlowRandom = true;
+		bool SlowRandom = false;
 #ifdef PN_OPTIX
 		bool EnableDenoising = true;
 #endif
 #ifdef PN_CUDA
-		bool EnableInterop = false;
+		bool EnableInterop = true;
 #endif
 	};
 
