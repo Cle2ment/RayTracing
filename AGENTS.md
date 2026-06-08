@@ -1,9 +1,9 @@
 # RayTracing — Project Knowledge Base
 
 **Generated:** 2026-05-28
-**Updated:**   2026-06-08 (Phase 0 bugfixes merged: fixing 6 rendering bugs + compiler warnings)
-**Commit:** `7ab9019`
-**Branch:** `master`
+**Updated:**   2026-06-08 (Phase 1 MOD-01→03 complete: RAII, CUDA error handling, vector migration)
+**Commit:** `e6be5aa`
+**Branch:** `refactor/phase-1-modernization` (7 commits ahead of master, not pushed)
 
 ## OVERVIEW
 
@@ -85,6 +85,7 @@ RayTracing/
 | `GPURenderSettings` | struct | `CUDATypes.cuh:77` | Device-side render settings |
 | `VkCUDAInterop` | class | `VkCUDAInterop.h:8` | RAII Vulkan-CUDA external memory wrapper |
 | `OptiXDenoiser` | class | `OptiXDenoiser.h:17` | RAII OptiX AI denoiser wrapper |
+| `CUDARenderStateDeleter` | struct | `CUDARenderer.h:85` | RAII custom deleter for `unique_ptr<CUDARenderState>` |
 | `Camera::OnUpdate()` | method | `Camera.cpp:18` | FPS camera controls |
 | `Camera::RecalculateRayDirections()` | method | `Camera.cpp:138` | Pre-compute ray grid |
 | `::ISPCRenderPixels()` | export | `PathTracer.ispc:167` | ISPC SIMD path tracer entry point |
@@ -135,7 +136,7 @@ RayTracing/
 
 ## ANTI-PATTERNS
 
-- **NEVER modify Peanut library files** — extend via `ExampleLayer` subclass (exceptions: Vulkan extensions require minimal changes to `Application.cpp`/`Image.h`, see CONVENTIONS)
+- **NEVER modify Peanut library files** — extend via `ExampleLayer` subclass (exceptions: Vulkan extensions require minimal changes to `Application.cpp`/`Image.h`; Peanut bugfixes listed in PHASE 2 are explicit exceptions)
 - **NEVER suppress CUDA errors** — always check `cudaMalloc`/`cudaMemcpy`/`cudaStreamCreate` return values
 - **NEVER assume scene data is synced to GPU** — increment `Scene::Version` on any scene change
 - **NEVER change `GPUPacked*` struct layout without updating `GPUMaterial`/`GPUSphere` in `CUDATypes.cuh`**
@@ -208,3 +209,64 @@ dotnet sln vsxmake2026\RayTracing.sln migrate
 - **OptiX denoiser** — requires OptiX SDK 7.0+; detected via `OptiX_ROOT` or `OPTIX_PATH` env var
 - **Vulkan-CUDA interop** — Windows-only (Win32 external memory handles); toggle via ImGui checkbox
 - **GGX Microfacet BRDF** — replaces Lambertian diffuse on all three paths (CUDA, CPU C++, ISPC SMID)
+
+## PHASE 1 — Modernization Complete (refactor/phase-1-modernization)
+
+| MOD | Commit | Scope |
+|-----|--------|-------|
+| MOD-01 | `26202c4` | `std::vector` replaces raw `new[]`/`delete[]` for `m_ImageData` / `m_AccumulationData` |
+| MOD-02 | `eb0dfad` | `CUDA_CHECK` macro: Debug→`abort()`, Release→`state->cudaError` flag |
+| MOD-02a | `3b1e804` | Debug abort / Release skip frame, CPU fallback deferred to Phase 3 |
+| MOD-02 fix | `9fcabeb` | Correct `#endif` comment: `!PN_CUDA` → `PN_CUDA` |
+| MOD-03 | `32ace05` | `CUDARenderState` RAII — `unique_ptr` + `CUDARenderStateDeleter` |
+| MOD-02 fix | `401f732` | `CUDARenderer_Init`: manual error checks (fixes Release compile error) |
+| MOD-03 fix | `e6be5aa` | `.reset()` instead of `=` for `unique_ptr` assignment |
+
+## PHASE 2 — Planned (Peanut fixes + RayTracing performance + modernization)
+
+### P0 — Peanut: Shutdown & Resource Leaks (CRASH/LEAK)
+| # | File | Issue | Fix |
+|---|------|-------|-----|
+| P2-01 | `Peanut/Peanut/src/Peanut/Application.cpp:267~270` | VkSurfaceKHR not destroyed → `VUID-vkDestroyInstance-instance-00629` | Add `vkDestroySurfaceKHR(g_Instance, g_MainWindowData.Surface, g_Allocator)` to `CleanupVulkanWindow()` |
+| P2-02 | `Peanut/Peanut/src/Peanut/Image.cpp:161~174` | Descriptor set leak: `ImGui_ImplVulkan_AddTexture` without matching `RemoveTexture` | Add `ImGui_ImplVulkan_RemoveTexture(m_DescriptorSet)` to `Release()` |
+
+### P1 — Peanut: Memory Safety
+| # | File | Issue | Fix |
+|---|------|-------|-----|
+| P2-03 | `Peanut/Peanut/src/Peanut/EntryPoint.h:16` | Raw `delete app;` — no exception safety | `std::unique_ptr<Peanut::Application>` |
+| P2-04 | `Peanut/Peanut/src/Peanut/Application.cpp:94,132,159` | 3× `malloc`/`free` for temp Vulkan arrays | `std::vector` |
+
+### P2 — RayTracing: Performance
+| # | File | Issue | Fix |
+|---|------|-------|-----|
+| P2-05 | `CUDARenderer.cu:304` | Unnecessary `cudaStreamSynchronize` after `ClearAccumulationKernel` (same stream) | Remove sync; in-order execution guaranteed |
+| P2-06 | `CUDARenderer.cu:295` | CPU-blocking upload stream sync | CUDA events: `cudaEventRecord` + `cudaStreamWaitEvent` |
+| P2-07 | `Renderer.cpp:331,333,341` | 3× redundant `pixelIndex` computation in parallel CPU path | Cache `width` + `pixelIndex` once |
+
+### P3 — RayTracing: Modernization
+| # | File | Issue | Fix |
+|---|------|-------|-----|
+| P2-08 | `CUDARenderer.cu:331,371,372,402` | C-style casts in CUDA code (4×) | `static_cast` / `reinterpret_cast` |
+| P2-09 | `OptiXDenoiser.cpp:112+` | `(CUdeviceptr)` C-style casts (7×) | `reinterpret_cast<CUdeviceptr>` |
+| P2-10 | `Renderer.cpp:318` | `#define MT 1` → `constexpr bool` | `static constexpr bool kMultithreaded = true` + `if constexpr` |
+| P2-11 | `Renderer.cpp:161~167` | Raw `for` loops for iota fill | `std::iota` |
+
+### P4 — RayTracing: Architecture
+| # | File | Issue | Fix |
+|---|------|-------|-----|
+| P2-12 | `CUDARenderer.cuh:30,72,110,352` + `PathTracer.ispc:67,106,353~355` | Duplicated π constant (9×) | Centralize: `constexpr float kPi` |
+| P2-13 | `Renderer.cpp:448,726,302` + `CUDATypes.cuh:79` | Hardcoded `MaxBounces = 5` (4×) | Single named constant, wire to UI slider |
+| P2-14 | `Renderer.cpp:488,494,532` + `CUDARenderer.cuh:296~355` | Duplicated epsilon constants | Named constants (`kSelfIntersectionEpsilon`, `kDenominatorEpsilon`) |
+
+### P5 — Peanut: Code Quality (opportunistic)
+| # | File | Issue |
+|---|------|-------|
+| P2-15 | `Peanut/Peanut/src/Peanut/Application.cpp` + others | 28 C-style casts across 5 files → named casts |
+| P2-16 | `Peanut/Peanut/src/Peanut/Application.cpp:35~57` | Mutable static globals → member variables (architectural) |
+| P2-17 | `Peanut/Peanut/src/Peanut/Image.cpp:158` | ImGui descriptor management (`AddTexture`/`RemoveTexture` confirmed) |
+
+### PHASE 3 — Deferred
+- MOD-02b: CPU fallback on GPU error (requires `IRenderBackend` abstraction)
+- GPU BVH (bounding volume hierarchy) — replace brute-force O(N) sphere intersection
+- OptiX Driver/Runtime API context bridge fix
+- Peanut architectural refactor (global state → member variables)
