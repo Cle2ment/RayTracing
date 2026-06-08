@@ -301,7 +301,7 @@ void CUDARenderer_Render(
         int blocks = (state->pixelCount + threadsPerBlock - 1) / threadsPerBlock;
         ClearAccumulationKernel<<<blocks, threadsPerBlock, 0, state->computeStream>>>(
             state->d_AccumulationBuffer, state->pixelCount);
-        CUDA_CHECK(cudaStreamSynchronize(state->computeStream));
+        // No sync needed: subsequent kernels on same computeStream execute in order
     }
 
     // ── Pass 1: Path trace raw samples ──
