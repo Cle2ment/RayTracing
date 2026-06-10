@@ -1,8 +1,8 @@
 # RayTracing — Project Knowledge Base
 
 **Generated:** 2026-05-28
-**Updated:**   2026-06-10 (Phase 1 closed, #13→#21 merged, Batch 1-10 complete.  Next: MOD-02b CPU fallback.)
-**Commit:** `24ac742`
+**Updated:**   2026-06-10 (Phase 1 closed, #13→#22 merged, Batch 1-9 complete.  Next: GPU BVH.)
+**Commit:** `9acb965`
 **Branch:** `master`
 
 ## OVERVIEW
@@ -266,9 +266,9 @@ Batches in planned execution sequence with current status.
 | Batch 6 | C-style casts (P2-08→P2-15) + Constants.h + constexpr/iota/pi/epsilon | ✅ #18 merged |
 | Batch 7 | MOD-05 noexcept (29 functions) | ✅ #19 merged |
 | **Batch 8** | **MOD-09 Catch2 unit tests** | ✅ **#20 merged** |
-| Batch 9 | MOD-02b CPU fallback (IRenderBackend) | ⬚ **NEXT** |
+| Batch 9 | MOD-02b CPU fallback (IRenderBackend) | ✅ #22 merged |
 | Batch 10 | P2-16 Peanut static globals | ✅ #21 merged |
-| Batch 11 | GPU BVH | ⬚ deferred |
+| Batch 11 | GPU BVH | ⬚ **NEXT** |
 | Batch 12 | OptiX context bridge fix | ⬚ deferred |
 
 > **Update rule:** After completing each batch, mark it ✅, bump the NEXT indicator to the following batch, and update the page header date/commit.
@@ -278,7 +278,7 @@ Batches in planned execution sequence with current status.
 | Priority | Item | Description |
 |----------|------|-------------|
 | P0 | MOD-09 | ✅ Catch2 unit tests for core CPU C++ functions (GGX BRDF, TraceRay, PCGHash, ConvertToRGBA) |
-| P1 | MOD-02b | CPU fallback on GPU error — requires `IRenderBackend` abstraction |
+| P1 | MOD-02b | ✅ CPU fallback on GPU error — IRenderBackend abstraction |
 | P2 | P2-16 | ✅ Peanut mutable static globals → Application members (opportunistic) |
 | P3 | GPU BVH | Bounding volume hierarchy — replace brute-force O(N) sphere intersection |
 | P4 | OptiX fix | Driver/Runtime API context bridge fix |
