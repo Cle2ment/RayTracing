@@ -59,12 +59,22 @@ jobs:
           xmake f -m debug -y
           xmake build
 
+      - name: Test (Debug)
+        if: matrix.configuration == 'Debug'
+        shell: pwsh
+        run: xmake run RayTracing_test
+
       - name: Build (Release)
         if: matrix.configuration == 'Release'
         shell: pwsh
         run: |
           xmake f -m release -y
           xmake build
+
+      - name: Test (Release)
+        if: matrix.configuration == 'Release'
+        shell: pwsh
+        run: xmake run RayTracing_test
 
       # ── Locate actual xmake output directory (Release) ──
       - name: Locate Build Output (Release)
