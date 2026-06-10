@@ -13,7 +13,7 @@ add_requires("glfw 3.4")
 -- ── Vulkan SDK ──
 local vulkan_sdk = os.getenv("VULKAN_SDK")
 if not vulkan_sdk then
-    cprint("${bright yellow}VULKAN_SDK not set — Vulkan-dependent targets will fail to build")
+    print("VULKAN_SDK not set — Vulkan-dependent targets will fail to build")
     vulkan_sdk = ""
 end
 
