@@ -186,3 +186,11 @@ if optix_found and cuda_found then
         add_includedirs(optix_include)
         add_links("cuda", "Advapi32")
 end
+
+-- ── Unit Tests (Catch2 v2, single-header vendored) ──
+target("RayTracing_test")
+    set_kind("binary")
+    set_languages("c++23")
+    add_packages("glm")
+    add_files("RayTracing/test/**.cpp")
+    add_includedirs("RayTracing/src", "vendor/catch2")
