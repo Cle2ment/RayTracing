@@ -1,8 +1,8 @@
 # RayTracing — Project Knowledge Base
 
 **Generated:** 2026-05-28
-**Updated:**   2026-06-10 (Phase 1 closed: all 9 MODs assessed, MOD-05 noexcept applied, #13→#19 merged.  Batch 5-7 complete.  Next: MOD-09 Catch2 tests.)
-**Commit:** `e045c19`
+**Updated:**   2026-06-10 (Phase 1 closed, #13→#20 merged, Batch 1-8 complete.  Next: MOD-02b CPU fallback.)
+**Commit:** `5b97357`
 **Branch:** `master`
 
 ## OVERVIEW
@@ -226,7 +226,7 @@ dotnet sln vsxmake2026\RayTracing.sln migrate
 | MOD-06 | ⬚ N/A | ISPC `std::move` — zero candidates (vectors are member variables, already optimally reused) |
 | MOD-07 | ❌ blocked | ASan/UBSan not feasible (MSVC multi-target limitation across Peanut.lib + RayTracing.exe) |
 | MOD-08 | ⬚ N/A | `constexpr` local variables — Renderer.cpp already clean |
-| MOD-09 | ⬚ deferred | Catch2 unit tests (next priority) |
+| MOD-09 | ✅ #20 | Catch2 unit tests (28 test cases, 293 assertions, 6 core CPU functions) |
 
 ## COMPLETED REFACTORING (PRs #13→#19, all merged)
 
@@ -239,6 +239,7 @@ dotnet sln vsxmake2026\RayTracing.sln migrate
 | #17 | `refactor/phase-5-infra` | MOD-04 ISPC scene version tracking |
 | #18 | `refactor/phase-6-code-quality` | P2-08→P2-15: C-style casts→named (20 RayTracing + 28 Peanut), Constants.h, constexpr/iota/pi/epsilon |
 | #19 | `refactor/phase-7-finals` | MOD-05 noexcept (29 functions, 10 files) |
+| #20 | `refactor/phase-8-catch2-tests` | MOD-09 Catch2 v3.11 unit tests (28 cases, 293 assertions) |
 
 ### Shared Constants (Constants.h)
 - `kPi = 3.14159265358979323846f` — replaces 11 literal occurrences + 3 `glm::pi<float>()` calls
@@ -264,8 +265,8 @@ Batches in planned execution sequence with current status.
 | Batch 5 | ISPC scene version tracking (MOD-04) | ✅ #17 merged |
 | Batch 6 | C-style casts (P2-08→P2-15) + Constants.h + constexpr/iota/pi/epsilon | ✅ #18 merged |
 | Batch 7 | MOD-05 noexcept (29 functions) | ✅ #19 merged |
-| **Batch 8** | **MOD-09 Catch2 unit tests** | ⬚ **NEXT** |
-| Batch 9 | MOD-02b CPU fallback (IRenderBackend) | ⬚ deferred |
+| **Batch 8** | **MOD-09 Catch2 unit tests** | ✅ **#20 merged** |
+| Batch 9 | MOD-02b CPU fallback (IRenderBackend) | ⬚ **NEXT** |
 | Batch 10 | P2-16 Peanut static globals | ⬚ deferred |
 | Batch 11 | GPU BVH | ⬚ deferred |
 | Batch 12 | OptiX context bridge fix | ⬚ deferred |
@@ -276,7 +277,7 @@ Batches in planned execution sequence with current status.
 
 | Priority | Item | Description |
 |----------|------|-------------|
-| P0 | MOD-09 | Catch2 unit tests for core CPU C++ functions (GGX BRDF, TraceRay, PCGHash, ConvertToRGBA) |
+| P0 | MOD-09 | ✅ Catch2 unit tests for core CPU C++ functions (GGX BRDF, TraceRay, PCGHash, ConvertToRGBA) |
 | P1 | MOD-02b | CPU fallback on GPU error — requires `IRenderBackend` abstraction |
 | P2 | P2-16 | Peanut mutable static globals → member variables (opportunistic) |
 | P3 | GPU BVH | Bounding volume hierarchy — replace brute-force O(N) sphere intersection |
