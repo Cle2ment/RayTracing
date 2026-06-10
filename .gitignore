@@ -51,6 +51,10 @@ vendor/*
 !vendor/ispc/
 vendor/ispc/*
 !vendor/ispc/.gitkeep
+!vendor/catch2/
+vendor/catch2/*
+!vendor/catch2/catch_amalgamated.hpp
+!vendor/catch2/catch_amalgamated.cpp
 
 # ─── Runtime ───
 *.ini
