@@ -52,6 +52,8 @@ public:
 
 	[[nodiscard]] bool OutputDelivered() const override { return m_InteropEnabled; }
 
+	void InvalidateRayDirs() override { m_RayDirsDirty = true; }
+
 	/// Set destination VkImage for Vulkan-CUDA interop copy.
 	/// Must be called after OnResize when interop is active.
 	void SetDestinationImage(VkImage image) noexcept { m_DestinationImage = image; }

@@ -44,10 +44,11 @@ Renderer::~Renderer() noexcept = default;
 
 void Renderer::OnResize(uint32_t width, uint32_t height)
 {
-	if (m_FinalImage && m_FinalImage->GetWidth() == width && m_FinalImage->GetHeight() == height)
-		return;
+	if (!m_FinalImage || m_FinalImage->GetWidth() != width || m_FinalImage->GetHeight() != height)
+	{
+		m_FinalImage = std::make_shared<Peanut::Image>(width, height, Peanut::ImageFormat::RGBA);
+	}
 
-	m_FinalImage = std::make_shared<Peanut::Image>(width, height, Peanut::ImageFormat::RGBA);
 	m_ImageData.resize(static_cast<size_t>(width) * static_cast<size_t>(height));
 
 	m_Backend->OnResize(width, height);
@@ -86,10 +87,10 @@ void Renderer::Render(const Scene& scene, const Camera& camera)
 }
 
 // ──────────────────────────────────────────────
-// MarkRayDirsDirty — no-op; backends manage
-// their own ray direction dirty tracking.
+// MarkRayDirsDirty — delegated to backend
 // ──────────────────────────────────────────────
 
 void Renderer::MarkRayDirsDirty()
 {
+	m_Backend->InvalidateRayDirs();
 }

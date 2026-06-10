@@ -36,4 +36,8 @@ public:
 	/// (e.g. via zero-copy interop). When false, the orchestrator calls
 	/// SetData on the final image using outputBuffer from Render().
 	[[nodiscard]] virtual bool OutputDelivered() const { return false; }
+
+	/// Called by the orchestrator when the camera has moved, so the
+	/// backend should re-upload ray directions on the next Render().
+	virtual void InvalidateRayDirs() {}
 };
