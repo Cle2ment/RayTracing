@@ -1,4 +1,4 @@
-#include <catch.hpp>
+#include <catch_amalgamated.hpp>
 #include "PathTracerCore.h"
 
 using namespace PathTracerCore;
