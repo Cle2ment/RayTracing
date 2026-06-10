@@ -9,14 +9,14 @@ class VkCUDAInterop
 {
 public:
     VkCUDAInterop(uint32_t width, uint32_t height);
-    ~VkCUDAInterop();
+    ~VkCUDAInterop() noexcept;
 
-    void*  GetCUDADevicePtr() const { return m_CUDADevPtr; }
-    VkBuffer GetVulkanBuffer() const { return m_Buffer; }
-    uint32_t GetWidth()  const { return m_Width; }
-    uint32_t GetHeight() const { return m_Height; }
+    void*  GetCUDADevicePtr() const noexcept { return m_CUDADevPtr; }
+    VkBuffer GetVulkanBuffer() const noexcept { return m_Buffer; }
+    uint32_t GetWidth()  const noexcept { return m_Width; }
+    uint32_t GetHeight() const noexcept { return m_Height; }
 
-    void SyncCUDAComplete(cudaStream_t stream);
+    void SyncCUDAComplete(cudaStream_t stream) noexcept;
 
 private:
     void CreateVulkanBuffer();

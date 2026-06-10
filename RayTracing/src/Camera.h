@@ -11,24 +11,24 @@ public:
 	bool OnUpdate(float ts);
 	void OnResize(uint32_t width, uint32_t height);
 
-	[[nodiscard]] const glm::mat4& GetProjection() const
+	[[nodiscard]] const glm::mat4& GetProjection() const noexcept
 	{ return m_Projection; }
-	[[nodiscard]] const glm::mat4& GetInverseProjection() const
+	[[nodiscard]] const glm::mat4& GetInverseProjection() const noexcept
 	{ return m_InverseProjection; }
-	[[nodiscard]] const glm::mat4& GetView() const
+	[[nodiscard]] const glm::mat4& GetView() const noexcept
 	{ return m_View; }
-	[[nodiscard]] const glm::mat4& GetInverseView() const
+	[[nodiscard]] const glm::mat4& GetInverseView() const noexcept
 	{ return m_InverseView; }
 
-	[[nodiscard]] const glm::vec3& GetPosition() const
+	[[nodiscard]] const glm::vec3& GetPosition() const noexcept
 	{ return m_Position; }
-	[[nodiscard]] const glm::vec3& GetDirection() const
+	[[nodiscard]] const glm::vec3& GetDirection() const noexcept
 	{ return m_ForwardDirection; }
 
-	[[nodiscard]] const std::vector<glm::vec3>& GetRayDirections() const
+	[[nodiscard]] const std::vector<glm::vec3>& GetRayDirections() const noexcept
 	{ return m_RayDirections; }
 
-	static float GetRotationSpeed();
+	static float GetRotationSpeed() noexcept;
 
 private:
 	void RecalculateProjection();

@@ -30,7 +30,7 @@ VkCUDAInterop::VkCUDAInterop(uint32_t width, uint32_t height)
     }
 }
 
-VkCUDAInterop::~VkCUDAInterop()
+VkCUDAInterop::~VkCUDAInterop() noexcept
 {
     VkDevice device = Peanut::Application::GetDevice();
     if (m_CUDAExtMem) cudaDestroyExternalMemory(m_CUDAExtMem);
@@ -119,7 +119,7 @@ void VkCUDAInterop::ExportToCUDA()
         throw std::runtime_error(std::string("VkCUDAInterop: cudaExternalMemoryGetMappedBuffer failed: ") + cudaGetErrorString(err));
 }
 
-void VkCUDAInterop::SyncCUDAComplete(cudaStream_t stream)
+void VkCUDAInterop::SyncCUDAComplete(cudaStream_t stream) noexcept
 {
     cudaStreamSynchronize(stream);
 }

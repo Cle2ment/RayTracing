@@ -69,7 +69,7 @@ OptiXDenoiser::OptiXDenoiser()
     std::printf("[OptiX] Context created successfully\n");
 }
 
-OptiXDenoiser::~OptiXDenoiser()
+OptiXDenoiser::~OptiXDenoiser() noexcept
 {
     Cleanup();
     if (m_optixContext)

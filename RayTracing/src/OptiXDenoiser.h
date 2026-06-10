@@ -18,7 +18,7 @@ class OptiXDenoiser
 {
 public:
     OptiXDenoiser();
-    ~OptiXDenoiser();
+    ~OptiXDenoiser() noexcept;
 
     OptiXDenoiser(const OptiXDenoiser&) = delete;
     OptiXDenoiser& operator=(const OptiXDenoiser&) = delete;
@@ -38,7 +38,7 @@ public:
                  uint32_t width, uint32_t height,
                  cudaStream_t stream);
 
-    bool IsValid() const { return m_valid; }
+    bool IsValid() const noexcept { return m_valid; }
 
 private:
     void Cleanup();
@@ -62,10 +62,10 @@ private:
 class OptiXDenoiser
 {
 public:
-    bool Initialize(uint32_t, uint32_t, void*) { return false; }
-    void Resize(uint32_t, uint32_t, void*) {}
-    void Denoise(void*, void*, uint32_t, uint32_t, void*) {}
-    bool IsValid() const { return false; }
+    bool Initialize(uint32_t, uint32_t, void*) noexcept { return false; }
+    void Resize(uint32_t, uint32_t, void*) noexcept {}
+    void Denoise(void*, void*, uint32_t, uint32_t, void*) noexcept {}
+    bool IsValid() const noexcept { return false; }
 };
 
 #endif // PN_OPTIX
