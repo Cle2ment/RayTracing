@@ -18,106 +18,8 @@
 #endif
 
 #ifndef PN_CUDA
-
-// ──────────────────────────────────────────────
-// CPU-Only Rendering Path
-// ──────────────────────────────────────────────
-
-namespace Utils
-{
-	static uint32_t ConvertToRGBA(const glm::vec4& color)
-	{
-		const uint8_t r = static_cast<uint8_t>(color.r * 255.0f);
-		const uint8_t g = static_cast<uint8_t>(color.g * 255.0f);
-		const uint8_t b = static_cast<uint8_t>(color.b * 255.0f);
-		const uint8_t a = static_cast<uint8_t>(color.a * 255.0f);
-
-		const uint32_t result = (a << 24) | (b << 16) | (g << 8) | r;
-
-		return result;
-	}
-
-	static uint32_t PCG_Hash(const uint32_t input)
-	{
-		const uint32_t state = input * 747796405u + 2891336453u;
-		const uint32_t word = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
-
-		return (word >> 22u) ^ word;
-	}
-
-	static float RandomFloat(uint32_t& seed)
-	{
-		seed = PCG_Hash(seed);
-
-		return static_cast<float>(seed) / static_cast<float>(std::numeric_limits<uint32_t>::max());
-	}
-
-	static glm::vec3 InUnitSphere(uint32_t& seed)
-	{
-		return glm::normalize(glm::vec3(
-			RandomFloat(seed) * 2.0f - 1.0f,
-			RandomFloat(seed) * 2.0f - 1.0f,
-			RandomFloat(seed) * 2.0f - 1.0f
-		));
-	}
-
-	// ── GGX Microfacet ──
-	static void BuildONB(const glm::vec3& n, glm::vec3& u, glm::vec3& v, glm::vec3& w)
-	{
-		w = n;
-		float sign = (w.z > 0.0f) ? 1.0f : -1.0f;
-		float a = -1.0f / (sign + w.z);
-		float b = w.x * w.y * a;
-		u = glm::vec3(1.0f + sign * w.x * w.x * a, sign * b, -sign * w.x);
-		v = glm::vec3(b, sign + w.y * w.y * a, -w.y);
-	}
-
-	static glm::vec3 FresnelSchlick(float cosTheta, const glm::vec3& F0)
-	{
-		float t = glm::max(1.0f - cosTheta, 0.0f);
-		float t5 = t * t * t * t * t;
-		return F0 + (glm::vec3(1.0f) - F0) * t5;
-	}
-
-	static float GGX_D(float NdotH, float a)
-	{
-		float a2 = a * a;
-		float d = NdotH * NdotH * (a2 - 1.0f) + 1.0f;
-		return a2 / (kPi * d * d);
-	}
-
-	static float GGX_G1(float NdotV, float a)
-	{
-		float a2 = a * a;
-		float denom = NdotV + glm::sqrt(NdotV * NdotV * (1.0f - a2) + a2);
-		return 2.0f * NdotV / glm::max(denom, kDenominatorEpsilon);
-	}
-
-	static float GGX_G(float NdotL, float NdotV, float a)
-	{
-		return GGX_G1(NdotL, a) * GGX_G1(NdotV, a);
-	}
-
-	static glm::vec3 SampleGGX_VNDF(const glm::vec3& V, float a, float r1, float r2)
-	{
-		glm::vec3 Vh = glm::normalize(glm::vec3(a * V.x, a * V.y, V.z));
-		glm::vec3 up(0.0f, 0.0f, 1.0f);
-		glm::vec3 T1 = (Vh.z < 0.9999f) ? glm::normalize(glm::cross(up, Vh)) : glm::vec3(1.0f, 0.0f, 0.0f);
-		glm::vec3 T2 = glm::cross(Vh, T1);
-
-		float r = glm::sqrt(r1);
-		float phi = 2.0f * kPi * r2;
-		float t1 = r * glm::cos(phi);
-		float t2 = r * glm::sin(phi);
-		float s = 0.5f * (1.0f + Vh.z);
-		t2 = (1.0f - s) * glm::sqrt(glm::max(1.0f - t1 * t1, 0.0f)) + s * t2;
-
-		glm::vec3 Nh = t1 * T1 + t2 * T2 + glm::sqrt(glm::max(1.0f - t1*t1 - t2*t2, 0.0f)) * Vh;
-		return glm::normalize(glm::vec3(a * Nh.x, a * Nh.y, glm::max(0.0f, Nh.z)));
-	}
-}
-
-#endif // !PN_CUDA
+#include "PathTracerCore.h"
+#endif
 
 // ──────────────────────────────────────────────
 // Shared: Constructor / Destructor
@@ -318,7 +220,7 @@ void Renderer::Render(const Scene& scene, const Camera& camera)
 			glm::vec4 accumulated = m_AccumulationData[i];
 			accumulated /= static_cast<float>(m_FrameIndex);
 			accumulated = glm::clamp(accumulated, glm::vec4(0.0f), glm::vec4(1.0f));
-			m_ImageData[i] = Utils::ConvertToRGBA(accumulated);
+			m_ImageData[i] = PathTracerCore::ConvertToRGBA(accumulated);
 		}
 	}
 #else
@@ -347,7 +249,7 @@ void Renderer::Render(const Scene& scene, const Camera& camera)
 							glm::vec4(0.0f), glm::vec4(1.0f)
 						);
 						m_ImageData[idx]
-							= Utils::ConvertToRGBA(accumulatedColor);
+							= PathTracerCore::ConvertToRGBA(accumulatedColor);
 					});
 			});
 	} else {
@@ -360,7 +262,7 @@ void Renderer::Render(const Scene& scene, const Camera& camera)
 				glm::vec4 accumulatedColor = m_AccumulationData[x + y * m_FinalImage->GetWidth()];
 				accumulatedColor /= static_cast<float>(m_FrameIndex);
 				accumulatedColor = glm::clamp(accumulatedColor, glm::vec4(0.0f), glm::vec4(1.0f));
-				m_ImageData[x + y * m_FinalImage->GetWidth()] = Utils::ConvertToRGBA(accumulatedColor);
+				m_ImageData[x + y * m_FinalImage->GetWidth()] = PathTracerCore::ConvertToRGBA(accumulatedColor);
 			}
 		}
 	}
@@ -488,7 +390,7 @@ glm::vec4 Renderer::PerPixel(uint32_t x, uint32_t y) const
 		{
 			// Use luminance (BT.709) for survival probability: fairer than max(channel)
 		const float p = 0.2126f * contribution.r + 0.7152f * contribution.g + 0.0722f * contribution.b;
-			if (p < kRussianRouletteThreshold || (p < 1.0f && Utils::RandomFloat(seed) > p))
+			if (p < kRussianRouletteThreshold || (p < 1.0f && PathTracerCore::RandomFloat(seed) > p))
 				break;
 			contribution /= p;
 		}
@@ -503,15 +405,15 @@ glm::vec4 Renderer::PerPixel(uint32_t x, uint32_t y) const
 
 		// Build ONB from surface normal (Duff et al. 2017)
 		glm::vec3 u, v, w;
-		Utils::BuildONB(WorldNormal, u, v, w);
+		PathTracerCore::BuildONB(WorldNormal, u, v, w);
 
 		// Transform wo to local frame where n = (0,0,1)
 		float localWoX = glm::dot(u, w_o);
 		float localWoY = glm::dot(v, w_o);
 		float localWoZ = glm::dot(w, w_o);
 
-		const float r1 = Utils::RandomFloat(seed), r2 = Utils::RandomFloat(seed);
-		const glm::vec3 localH = Utils::SampleGGX_VNDF(glm::vec3(localWoX, localWoY, localWoZ), a, r1, r2);
+		const float r1 = PathTracerCore::RandomFloat(seed), r2 = PathTracerCore::RandomFloat(seed);
+		const glm::vec3 localH = PathTracerCore::SampleGGX_VNDF(glm::vec3(localWoX, localWoY, localWoZ), a, r1, r2);
 		const float NdotH = glm::max(localH.z, kNdotMin);
 		float WoDotH = localWoX*localH.x + localWoY*localH.y + localWoZ*localH.z;
 
@@ -527,10 +429,10 @@ glm::vec4 Renderer::PerPixel(uint32_t x, uint32_t y) const
 		// Transform wi back to world
 		const glm::vec3 wi = u*localWi.x + v*localWi.y + w*localWi.z;
 
-		const float  D = Utils::GGX_D(NdotH, a);
-		const float  G1_v = Utils::GGX_G1(NdotV, a);
-		const float  G = G1_v * Utils::GGX_G1(NdotL, a);
-		const glm::vec3 F = Utils::FresnelSchlick(WoDotH, F0);
+		const float  D = PathTracerCore::GGX_D(NdotH, a);
+		const float  G1_v = PathTracerCore::GGX_G1(NdotV, a);
+		const float  G = G1_v * PathTracerCore::GGX_G1(NdotL, a);
+		const glm::vec3 F = PathTracerCore::FresnelSchlick(WoDotH, F0);
 
 		const glm::vec3 specBRDF = D * G * F / (4.0f * NdotL * NdotV + kSpecDenominatorEps);
 		const glm::vec3 kD = (glm::vec3(1.0f) - F) * (1.0f - material.Metallic);
