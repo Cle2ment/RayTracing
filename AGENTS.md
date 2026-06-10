@@ -2,7 +2,7 @@
 
 **Generated:** 2026-05-28
 **Updated:**   2026-06-10 (Phase 1 closed, #13→#22 merged, Batch 1-9 complete.  Next: GPU BVH.)
-**Commit:** `9acb965`
+**Commit:** `02fc00e`
 **Branch:** `master`
 
 ## OVERVIEW
@@ -13,9 +13,13 @@ GPU-accelerated real-time path tracer — C++23 + CUDA + Vulkan via Peanut (ImGu
 
 ```
 RayTracing/
-├── RayTracing/src/        # All application code (17 files, ~2758 loc)
+├── RayTracing/src/        # All application code (24 files)
 │   ├── PeanutApp.cpp      # Entry: scene setup, ImGui UI, render dispatch
-│   ├── Renderer.cpp/h     # Renderer: CPU path tracer + GPU dispatch + scene packing
+│   ├── Renderer.cpp/h     # Orchestrator: owns FinalImage, frame counter, delegates to IRenderBackend
+│   ├── IRenderBackend.h    # Abstract backend interface (OnResize, Render, OutputDelivered, InvalidateRayDirs)
+│   ├── CUDABackend.cpp/h   # GPU backend: wraps CUDARenderer_* C API + Vulkan interop + OptiX denoiser
+│   ├── CPUBackend.cpp/h    # CPU backend: PerPixel path tracer + ISPC SIMD + C++ fallback
+│   ├── PathTracerCore.h    # Shared GGX BRDF inline functions (CPU + Catch2 tests)
 │   ├── Camera.cpp/h       # Camera: ray direction pre-computation, FPS controls
 │   ├── CUDARenderer.cuh/.cu/.h  # GPU: kernels, device code, host wrappers
 │   ├── CUDATypes.cuh      # GPU struct definitions (must match CUDARenderer.h)
@@ -37,11 +41,11 @@ RayTracing/
 | Task | Location | Notes |
 |------|----------|-------|
 | ImGui scene controls | `PeanutApp.cpp:93-197` | Accumulate, Reset, Denoise, Vulkan-CUDA Interop checkboxes; scene/material editing; MaxBounces slider (1-20) |
-| CPU path tracing (C++) | `Renderer.cpp:438-523` | `PerPixel()` — `#ifndef PN_CUDA` block, includes GGX BRDF |
+| CPU path tracing (C++) | `CPUBackend.cpp` | `PerPixel()` + ISPC SIMD or `std::execution::par` fallback |
 | CPU path tracing (ISPC) | `PathTracer.ispc:167-357` | ISPC SIMD path tracer with GGX microfacet BRDF |
 | GPU path tracing | `CUDARenderer.cuh:238-367` | `PerPixel()` device function with GGX VNDF sampling |
 | GPU kernel launch | `CUDARenderer.cuh:374` (`RenderKernel`), `:399` (`PostProcessKernel`) | 16×16 blocks, two-stage pipeline |
-| Scene→GPU upload | `Renderer.cpp:600-637` | Packing from glm→GPU structs, version-tracked `cudaMemcpy` |
+| Scene→GPU upload | `CUDABackend.cpp` | Packing from glm→GPU structs, version-tracked `cudaMemcpy` |
 | Material definition | `Scene.h:7-19` | Albedo, Roughness, Metallic, EmissionColor, EmissionPower |
 | Camera ray generation | `Camera.cpp:138-166` | Pre-computed ray directions per pixel |
 | GGX Microfacet BRDF (GPU) | `CUDARenderer.cuh:58-125` | `FresnelSchlick`, `GGX_D`, `GGX_G1`, `GGX_G`, `SampleGGX_VNDF`, `BuildONB` |
@@ -60,8 +64,12 @@ RayTracing/
 
 | Symbol | Type | File:Lines | Role |
 |--------|------|------------|------|
-| `Renderer::PerPixel()` | method | `Renderer.cpp:438` | CPU path trace per pixel (GGX BRDF) |
-| `Renderer::RenderGPU()` | method | `Renderer.cpp:639` | GPU render dispatch |
+| `Renderer::PerPixel()` | method | `Renderer.cpp:438` | CPU path trace per pixel (GGX BRDF) — moved to CPUBackend |
+| `Renderer::RenderGPU()` | method | `Renderer.cpp:639` | GPU render dispatch — moved to CUDABackend |
+| `IRenderBackend::Render()` | virtual | `IRenderBackend.h:28` | Abstract backend render entry point |
+| `CUDABackend::Render()` | method | `CUDABackend.h:45` | GPU backend: upload scene → launch kernel → denoise → output |
+| `CPUBackend::Render()` | method | `CPUBackend.h:20` | CPU backend: ISPC SIMD or C++ PerPixel loop |
+| `CUDABackend::UploadSceneToGPU()` | method | `CUDABackend.h:59` | Host→GPU scene data packing + cudaMemcpy |
 | `::PerPixel()` | device fn | `CUDARenderer.cuh:238` | GPU path trace per pixel (GGX BRDF) |
 | `::RenderKernel()` | kernel | `CUDARenderer.cuh:374` | CUDA raw sample kernel (16×16 blocks) |
 | `::PostProcessKernel()` | kernel | `CUDARenderer.cuh:399` | Accumulate + average + clamp + RGBA conversion |
@@ -117,13 +125,12 @@ RayTracing/
 - GPU realloc only when sphere/material counts change (`CUDARenderer.cu:158-219`)
 - Scene version tracking: `Scene::Version` incremented on any ImGui change; `m_LastSceneVersion` compared to skip uploads
 
-### Rendering Pipeline (GPU)
-1. Scene data upload (if version changed) → sphere/materials H2D
-2. Camera position + ray directions upload (if dirty)
-3. `RenderKernel` → raw path trace samples → `d_SampleBuffer`
-4. `PostProcessKernel` → accumulate + average + clamp + RGBA → output buffer
-5. (Optional) OptiX denoiser on `d_DenoiseBuffer` → `ConvertToRGBAKernel`
-6. Output: interop path → `vkCmdCopyBufferToImage`; legacy path → D2H + `SetData`
+### Rendering Pipeline (Multi-Backend)
+1. `Renderer::Render` orchestrates: stores scene/camera pointers, delegates to `m_Backend->Render()`
+2. GPU path (`CUDABackend`): Scene data upload (version-tracked) → camera upload → ray dirs upload (dirty-tracked) → `RenderKernel` → `PostProcessKernel` → (OptiX denoise) → output (interop zero-copy or D2H)
+3. CPU path (`CPUBackend`): ISPC SIMD SoA packing → `ISPCRenderPixels` kernel → unpack + accumulate, or C++ `std::execution::par` fallback with `PerPixel()`
+4. Factory `CreateBackend()` selects GPU if `PN_CUDA` defined, falls back to CPU
+5. `Renderer` handles output delivery: checks `Backend->OutputDelivered()` to decide between interop path (GPU) or `SetData` path
 
 ### Emission Integration Order
 - Both CPU and GPU: `light += contribution * emission` BEFORE BRDF updates contribution
