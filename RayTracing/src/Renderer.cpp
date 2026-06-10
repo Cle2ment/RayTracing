@@ -1,107 +1,67 @@
 #include "Renderer.h"
 
-#include "Peanut/Random.h"
-
 #ifdef PN_CUDA
+#include "CUDABackend.h"
 #include "Peanut/Application.h"
 #endif
-
-#include <cstring>
-#include <execution>
-#include <limits>
-#include <ranges>
-#include <numeric>
-#include "Constants.h"
-
 #ifdef PN_ISPC
-#include "PathTracer_ispc.h"
+#include "CPUBackend.h"  // already included below when !PN_CUDA, but for ISPC path
 #endif
 
-#ifndef PN_CUDA
-#include "PathTracerCore.h"
-#endif
+#include "CPUBackend.h"
+
+#include <memory>
 
 // ──────────────────────────────────────────────
-// Shared: Constructor / Destructor
+// Factory: create the appropriate backend.
+// MOD-02b: CPU fallback when GPU backend becomes invalid.
+// ──────────────────────────────────────────────
+static std::unique_ptr<IRenderBackend> CreateBackend()
+{
+#ifdef PN_CUDA
+	auto gpuBackend = std::make_unique<CUDABackend>();
+	// TODO (MOD-02b): check init success, fallback to CPUBackend on failure
+	return gpuBackend;
+#else
+	return std::make_unique<CPUBackend>();
+#endif
+}
+
+// ──────────────────────────────────────────────
+// Constructor / Destructor
 // ──────────────────────────────────────────────
 
 Renderer::Renderer()
+	: m_Backend(CreateBackend())
 {
-#ifdef PN_CUDA
-	m_CUDAState.reset(CUDARenderer_Create());
-#endif
 }
 
 Renderer::~Renderer() noexcept = default;
 
 // ──────────────────────────────────────────────
-// OnResize (shared between CPU and GPU paths)
+// OnResize
 // ──────────────────────────────────────────────
 
 void Renderer::OnResize(uint32_t width, uint32_t height)
 {
-	if (m_FinalImage)
-	{
-		// No resize necessity
-		if (m_FinalImage->GetWidth() == width && m_FinalImage->GetHeight() == height)
-			return;
+	if (m_FinalImage && m_FinalImage->GetWidth() == width && m_FinalImage->GetHeight() == height)
+		return;
 
-		m_FinalImage->Resize(width, height);
-	}
-	else
-	{
-		m_FinalImage = std::make_shared<Peanut::Image>(
-			width,
-			height,
-			Peanut::ImageFormat::RGBA
-		);
-	}
+	m_FinalImage = std::make_shared<Peanut::Image>(width, height, Peanut::ImageFormat::RGBA);
+	m_ImageData.resize(static_cast<size_t>(width) * static_cast<size_t>(height));
 
-	m_ImageData.resize(width * height);
-
-#ifndef PN_CUDA
-	m_AccumulationData.resize(width * height);
-
-	m_ImageHorizontalIterator.resize(width);
-	m_ImageVerticalIterator.resize(height);
-
-	std::iota(m_ImageHorizontalIterator.begin(), m_ImageHorizontalIterator.end(), 0u);
-	std::iota(m_ImageVerticalIterator.begin(), m_ImageVerticalIterator.end(), 0u);
-#endif
+	m_Backend->OnResize(width, height);
 
 #ifdef PN_CUDA
-	// Initialize CUDA on first resize
-	static bool cudaInitialized = false;
-	if (!cudaInitialized && m_CUDAState)
-	{
-		if (CUDARenderer_Init(m_CUDAState.get()))
-		{
-			cudaInitialized = true;
-			CUDARenderer_SetSettings(m_CUDAState.get(), m_Settings.MaxBounces);
-		}
-	}
-
-	if (cudaInitialized)
-	{
-		CUDARenderer_OnResize(m_CUDAState.get(), width, height);
-
-		// Recreate interop buffer on resize when enabled
-		if (m_InteropEnabled)
-		{
-			try { m_Interop = std::make_unique<VkCUDAInterop>(width, height); }
-		catch (...) { std::fprintf(stderr, "[Interop] Failed to create VkCUDAInterop on resize\n"); m_Interop.reset(); m_InteropEnabled = false; }
-			if (m_Interop)
-				CUDARenderer_SetOutputBuffer(m_CUDAState.get(), m_Interop->GetCUDADevicePtr());
-		}
-	}
+	// Set interop destination image (for zero-copy Vulkan output)
+	auto* cudaBackend = dynamic_cast<CUDABackend*>(m_Backend.get());
+	if (cudaBackend)
+		cudaBackend->SetDestinationImage(m_FinalImage->GetImage());
 #endif
-
-	m_RayDirsDirty = true;  // Force re-upload on resize
-	m_FrameIndex = 1;
 }
 
 // ──────────────────────────────────────────────
-// Render dispatch
+// Render — dispatches to backend, handles output
 // ──────────────────────────────────────────────
 
 void Renderer::Render(const Scene& scene, const Camera& camera)
@@ -109,226 +69,15 @@ void Renderer::Render(const Scene& scene, const Camera& camera)
 	m_ActiveScene = &scene;
 	m_ActiveCamera = &camera;
 
-#ifdef PN_CUDA
-	RenderGPU(scene, camera);
-#else
-	// ── CPU Rendering Path ──
-	if (m_FrameIndex == 1)
-		memset(
-			m_AccumulationData.data(),
-			0,
-			m_FinalImage->GetWidth() * m_FinalImage->GetHeight() * sizeof(glm::vec4)
-		);
+	if (m_ImageData.empty())
+		return;
 
-#ifdef PN_ISPC
-	// ═══════════════════════════════════════════════
-	// ISPC-Accelerated Path (SIMD vectorized)
-	// Replaces the inner pixel loop with ISPC foreach
-	// ═══════════════════════════════════════════════
-	{
-		const uint32_t width = m_FinalImage->GetWidth();
-		const uint32_t height = m_FinalImage->GetHeight();
-		const uint32_t pixelCount = width * height;
+	m_Backend->Render(scene, camera, m_ImageData.data(), m_FrameIndex, m_Settings.MaxBounces);
 
-		const auto& rayDirs = camera.GetRayDirections();
-		const glm::vec3& camPos = camera.GetPosition();
-
-		// ── Pack ray directions into SoA flat arrays ──
-		if (m_RayDirsDirty)
-		{
-			m_ISPCRayDirX.resize(pixelCount);
-			m_ISPCRayDirY.resize(pixelCount);
-			m_ISPCRayDirZ.resize(pixelCount);
-			for (uint32_t i = 0; i < pixelCount; i++) {
-				m_ISPCRayDirX[i] = rayDirs[i].x;
-				m_ISPCRayDirY[i] = rayDirs[i].y;
-				m_ISPCRayDirZ[i] = rayDirs[i].z;
-			}
-			m_RayDirsDirty = false;
-		}
-
-		// ── Pack scene spheres (SoA layout) ──
-		const uint32_t sphereCount = static_cast<uint32_t>(scene.Spheres.size());
-		if (scene.Version != m_LastISPCSceneVersion)
-		{
-			m_ISCPSphPosX.resize(sphereCount);
-			m_ISCPSphPosY.resize(sphereCount);
-			m_ISCPSphPosZ.resize(sphereCount);
-			m_ISCPSphRadius.resize(sphereCount);
-			m_ISCPSphMatIdx.resize(sphereCount);
-			for (uint32_t i = 0; i < sphereCount; i++) {
-				const auto& s = scene.Spheres[i];
-				m_ISCPSphPosX[i]   = s.Position.x;
-				m_ISCPSphPosY[i]   = s.Position.y;
-				m_ISCPSphPosZ[i]   = s.Position.z;
-				m_ISCPSphRadius[i] = s.Radius;
-				m_ISCPSphMatIdx[i] = s.MaterialIndex;
-			}
-
-		// ── Pack materials (SoA layout) ──
-		const uint32_t matCount = static_cast<uint32_t>(scene.Materials.size());
-			m_ISPCMatAlbedoR.resize(matCount);
-			m_ISPCMatAlbedoG.resize(matCount);
-			m_ISPCMatAlbedoB.resize(matCount);
-			m_ISPCMatRoughness.resize(matCount);
-			m_ISPCMatMetallic.resize(matCount);
-			m_ISPCMatEmissionR.resize(matCount);
-			m_ISPCMatEmissionG.resize(matCount);
-			m_ISPCMatEmissionB.resize(matCount);
-			m_ISPCMatEmissionPower.resize(matCount);
-			for (uint32_t i = 0; i < matCount; i++) {
-				const auto& m = scene.Materials[i];
-				m_ISPCMatAlbedoR[i]      = m.Albedo.x;
-				m_ISPCMatAlbedoG[i]      = m.Albedo.y;
-				m_ISPCMatAlbedoB[i]      = m.Albedo.z;
-				m_ISPCMatRoughness[i]    = m.Roughness;
-				m_ISPCMatMetallic[i]     = m.Metallic;
-				m_ISPCMatEmissionR[i]    = m.EmissionColor.x;
-				m_ISPCMatEmissionG[i]    = m.EmissionColor.y;
-				m_ISPCMatEmissionB[i]    = m.EmissionColor.z;
-				m_ISPCMatEmissionPower[i] = m.EmissionPower;
-			}
-			m_LastISPCSceneVersion = scene.Version;
-		}
-
-		// ── Output buffers ──
-		m_ISPCOutputR.resize(pixelCount);
-		m_ISPCOutputG.resize(pixelCount);
-		m_ISPCOutputB.resize(pixelCount);
-		m_ISPCOutputA.resize(pixelCount);
-
-		// ── Call ISPC kernel ──
-		ispc::ISPCRenderPixels(
-			camPos.x, camPos.y, camPos.z,
-			m_ISPCRayDirX.data(), m_ISPCRayDirY.data(), m_ISPCRayDirZ.data(),
-			m_ISCPSphPosX.data(), m_ISCPSphPosY.data(), m_ISCPSphPosZ.data(),
-			m_ISCPSphRadius.data(), m_ISCPSphMatIdx.data(),
-			m_ISPCMatAlbedoR.data(), m_ISPCMatAlbedoG.data(), m_ISPCMatAlbedoB.data(),
-			m_ISPCMatRoughness.data(), m_ISPCMatMetallic.data(),
-			m_ISPCMatEmissionR.data(), m_ISPCMatEmissionG.data(), m_ISPCMatEmissionB.data(),
-			m_ISPCMatEmissionPower.data(),
-			m_ISPCOutputR.data(), m_ISPCOutputG.data(), m_ISPCOutputB.data(), m_ISPCOutputA.data(),
-			static_cast<int32_t>(pixelCount), static_cast<int32_t>(sphereCount),
-			static_cast<int32_t>(m_FrameIndex), m_Settings.MaxBounces
-		);
-
-		// ── Unpack: accumulate + tone map + RGBA convert ──
-		for (uint32_t i = 0; i < pixelCount; i++) {
-			glm::vec4 color(m_ISPCOutputR[i], m_ISPCOutputG[i], m_ISPCOutputB[i], m_ISPCOutputA[i]);
-			m_AccumulationData[i] += color;
-
-			glm::vec4 accumulated = m_AccumulationData[i];
-			accumulated /= static_cast<float>(m_FrameIndex);
-			accumulated = glm::clamp(accumulated, glm::vec4(0.0f), glm::vec4(1.0f));
-			m_ImageData[i] = PathTracerCore::ConvertToRGBA(accumulated);
-		}
-	}
-#else
-	// ── C++ Scalar / std::execution::par Fallback ──
-	static constexpr bool kMultithreaded = true;
-	if constexpr (kMultithreaded) {
-		std::for_each(
-			std::execution::par,
-			m_ImageVerticalIterator.begin(), m_ImageVerticalIterator.end(),
-			[this](uint32_t y)
-			{
-				std::ranges::for_each(
-					m_ImageHorizontalIterator.begin(), m_ImageHorizontalIterator.end(),
-					[this, y, width = m_FinalImage->GetWidth()](const uint32_t x)
-					{
-						const glm::vec4 color = PerPixel(x, y);
-						const uint32_t idx = x + y * width;
-
-						m_AccumulationData[idx] += color;
-
-						glm::vec4 accumulatedColor = m_AccumulationData[idx];
-						accumulatedColor /= static_cast<float>(m_FrameIndex);
-
-						accumulatedColor = glm::clamp(
-							accumulatedColor,
-							glm::vec4(0.0f), glm::vec4(1.0f)
-						);
-						m_ImageData[idx]
-							= PathTracerCore::ConvertToRGBA(accumulatedColor);
-					});
-			});
-	} else {
-		for (uint32_t y = 0; y < m_FinalImage->GetHeight(); y++)
-		{
-			for (uint32_t x = 0; x < m_FinalImage->GetWidth(); x++)
-			{
-				glm::vec4 color = PerPixel(x, y);
-				m_AccumulationData[x + y * m_FinalImage->GetWidth()] += color;
-				glm::vec4 accumulatedColor = m_AccumulationData[x + y * m_FinalImage->GetWidth()];
-				accumulatedColor /= static_cast<float>(m_FrameIndex);
-				accumulatedColor = glm::clamp(accumulatedColor, glm::vec4(0.0f), glm::vec4(1.0f));
-				m_ImageData[x + y * m_FinalImage->GetWidth()] = PathTracerCore::ConvertToRGBA(accumulatedColor);
-			}
-		}
-	}
-#endif // PN_ISPC
-#endif // PN_CUDA
-
-#ifdef PN_CUDA
-	if (m_InteropEnabled && m_Interop)
-	{
-		// Interop path: CUDA wrote to Vulkan buffer, copy to Peanut's VkImage
-		VkCommandBuffer cmd = Peanut::Application::GetCommandBuffer(true);
-		VkImage dstImage = m_FinalImage->GetImage();
-
-		// Buffer barrier: external (CUDA) write → Vulkan transfer read
-		VkBufferMemoryBarrier bufBarrier = {};
-		bufBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
-		bufBarrier.srcAccessMask = 0;
-		bufBarrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-		bufBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-		bufBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-		bufBarrier.buffer = m_Interop->GetVulkanBuffer();
-		bufBarrier.size = VK_WHOLE_SIZE;
-		vkCmdPipelineBarrier(cmd,
-			VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-			VK_PIPELINE_STAGE_TRANSFER_BIT,
-			0, 0, nullptr, 1, &bufBarrier, 0, nullptr);
-
-		VkImageMemoryBarrier preBarrier = {};
-		preBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-		preBarrier.oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		preBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-		preBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-		preBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-		preBarrier.image = dstImage;
-		preBarrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
-		preBarrier.srcAccessMask = 0;
-		preBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-		vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-			VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &preBarrier);
-
-		VkBufferImageCopy region = {};
-		region.imageSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
-		region.imageExtent = { m_Interop->GetWidth(), m_Interop->GetHeight(), 1 };
-		vkCmdCopyBufferToImage(cmd, m_Interop->GetVulkanBuffer(), dstImage,
-			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
-
-		VkImageMemoryBarrier postBarrier = {};
-		postBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-		postBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-		postBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		postBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-		postBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-		postBarrier.image = dstImage;
-		postBarrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
-		postBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-		postBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-		vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT,
-			VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &postBarrier);
-
-		Peanut::Application::FlushCommandBuffer(cmd);
-	}
-	else
-#endif
-	{
+	// Output delivery: if the backend didn't handle it (e.g. zero-copy interop),
+	// copy the RGBA buffer to the final image.
+	if (!m_Backend->OutputDelivered())
 		m_FinalImage->SetData(m_ImageData.data());
-	}
 
 	if (m_Settings.Accumulate)
 		m_FrameIndex++;
@@ -337,338 +86,10 @@ void Renderer::Render(const Scene& scene, const Camera& camera)
 }
 
 // ──────────────────────────────────────────────
-// CPU-Only: PerPixel / TraceRay / ClosestHit / Miss
+// MarkRayDirsDirty — no-op; backends manage
+// their own ray direction dirty tracking.
 // ──────────────────────────────────────────────
 
-#ifndef PN_CUDA
-
-glm::vec4 Renderer::PerPixel(uint32_t x, uint32_t y) const
+void Renderer::MarkRayDirsDirty()
 {
-	Ray ray;
-	ray.Origin = m_ActiveCamera->GetPosition();
-	ray.Direction =
-		m_ActiveCamera->GetRayDirections()[x + y * m_FinalImage->GetWidth()];
-
-	glm::vec3 light(0.0f);
-	glm::vec3 contribution(1.0f);
-
-	uint32_t seed = x + y * m_FinalImage->GetWidth();
-	seed *= m_FrameIndex;
-
-	int bounces = m_Settings.MaxBounces;
-	for (int i = 0; i < bounces; i++)
-	{
-		seed += i;
-
-		auto [
-			HitDistance,
-			WorldPosition,
-			WorldNormal, ObjectIndex
-		] = TraceRay(ray);
-		if (HitDistance < 0.0f)
-		{
-			// Miss — terminate path (no sky/environment light)
-			break;
-		}
-
-		const auto& [
-			Position,
-			Radius,
-			MaterialIndex
-		] = m_ActiveScene->Spheres[ObjectIndex];
-		const Material& material = m_ActiveScene->Materials[MaterialIndex];
-
-
-		// Emission is attenuated by throughput-so-far (all previous surface BRDFs),
-		// but NOT by this surface's albedo (emission is a separate material property).
-		// This order matches the GPU path (CUDARenderer.cuh:193-200) and the
-		// path tracing integral: Le * ∏(previous BSDFs)
-		light += contribution * material.GetEmission();
-
-		// Russian roulette: probabilistically terminate low-contribution paths (after 3 guaranteed bounces)
-		if (i > 2)
-		{
-			// Use luminance (BT.709) for survival probability: fairer than max(channel)
-		const float p = 0.2126f * contribution.r + 0.7152f * contribution.g + 0.0722f * contribution.b;
-			if (p < kRussianRouletteThreshold || (p < 1.0f && PathTracerCore::RandomFloat(seed) > p))
-				break;
-			contribution /= p;
-		}
-
-		ray.Origin = WorldPosition + WorldNormal * kSelfIntersectionEpsilon;
-
-		// ── GGX Microfacet BRDF ──
-		const glm::vec3 w_o = -ray.Direction;
-		const glm::vec3 F0 = glm::mix(glm::vec3(0.04f), material.Albedo, material.Metallic);
-		const float rough = glm::max(material.Roughness, kRoughnessMin);
-		const float a = rough * rough;
-
-		// Build ONB from surface normal (Duff et al. 2017)
-		glm::vec3 u, v, w;
-		PathTracerCore::BuildONB(WorldNormal, u, v, w);
-
-		// Transform wo to local frame where n = (0,0,1)
-		float localWoX = glm::dot(u, w_o);
-		float localWoY = glm::dot(v, w_o);
-		float localWoZ = glm::dot(w, w_o);
-
-		const float r1 = PathTracerCore::RandomFloat(seed), r2 = PathTracerCore::RandomFloat(seed);
-		const glm::vec3 localH = PathTracerCore::SampleGGX_VNDF(glm::vec3(localWoX, localWoY, localWoZ), a, r1, r2);
-		const float NdotH = glm::max(localH.z, kNdotMin);
-		float WoDotH = localWoX*localH.x + localWoY*localH.y + localWoZ*localH.z;
-
-		// Reflect in local frame: wi = 2*(wo·H)*H - wo
-		const glm::vec3 localWi(
-			2.0f * WoDotH * localH.x - localWoX,
-			2.0f * WoDotH * localH.y - localWoY,
-			2.0f * WoDotH * localH.z - localWoZ
-		);
-		const float NdotL = glm::max(localWi.z, kNdotMin);
-		const float NdotV = glm::max(localWoZ, kNdotMin);
-
-		// Transform wi back to world
-		const glm::vec3 wi = u*localWi.x + v*localWi.y + w*localWi.z;
-
-		const float  D = PathTracerCore::GGX_D(NdotH, a);
-		const float  G1_v = PathTracerCore::GGX_G1(NdotV, a);
-		const float  G = G1_v * PathTracerCore::GGX_G1(NdotL, a);
-		const glm::vec3 F = PathTracerCore::FresnelSchlick(WoDotH, F0);
-
-		const glm::vec3 specBRDF = D * G * F / (4.0f * NdotL * NdotV + kSpecDenominatorEps);
-		const glm::vec3 kD = (glm::vec3(1.0f) - F) * (1.0f - material.Metallic);
-		const glm::vec3 diffBRDF = kD * material.Albedo / kPi;
-
-		// VNDF-correct PDF includes G1 for zero-variance at grazing angles
-		const float pdf = glm::max(G1_v * D / (4.0f * NdotV + kSpecDenominatorEps), kNdotMin);
-
-		const glm::vec3 bsdf = (specBRDF + diffBRDF) * NdotL;
-		contribution *= bsdf / pdf;
-
-		ray.Direction = glm::normalize(wi);
-	}
-	return { light, 1.0f };
 }
-
-Renderer::HitPayLoad Renderer::TraceRay(const Ray& ray) const
-{
-	int closestSphere = -1;
-	float hitDistance = std::numeric_limits<float>::max();
-
-	for (size_t i = 0; i < m_ActiveScene->Spheres.size(); i++)
-	{
-		const auto& [
-			Position,
-			Radius,
-			MaterialIndex
-		] = m_ActiveScene->Spheres[i];
-		glm::vec3 origin = ray.Origin - Position;
-
-		const float a = glm::dot(ray.Direction, ray.Direction);
-		const float b = 2.0f * glm::dot(origin, ray.Direction);
-		const float c = glm::dot(origin, origin) - Radius * Radius;
-
-		const float discriminant = b * b - 4.0f * a * c;
-		if (discriminant < 0.0f)
-			continue;
-
-		if (
-			const float closestT = (-b - glm::sqrt(discriminant)) / (2.0f * a);
-			closestT > 0.0f && closestT < hitDistance
-			)
-		{
-			hitDistance = closestT;
-			closestSphere = static_cast<int>(i);
-		}
-	}
-
-	if (closestSphere < 0)
-		return Miss(ray);
-
-	return ClosestHit(ray, hitDistance, closestSphere);
-}
-
-Renderer::HitPayLoad Renderer::ClosestHit(
-	const Ray& ray,
-	const float hitDistance,
-	const int objectIndex
-) const noexcept
-{
-	Renderer::HitPayLoad payload;
-	payload.HitDistance = hitDistance;
-	payload.ObjectIndex = objectIndex;
-
-	const auto& [Position, Radius, MaterialIndex]
-		= m_ActiveScene->Spheres[objectIndex];
-
-	const glm::vec3 origin = ray.Origin - Position;
-	payload.WorldPosition = origin + ray.Direction * hitDistance;
-	payload.WorldNormal = glm::normalize(payload.WorldPosition);
-
-	payload.WorldPosition += Position;
-
-	return payload;
-}
-
-Renderer::HitPayLoad Renderer::Miss(const Ray& ray) noexcept
-{
-	Renderer::HitPayLoad payload;
-	payload.HitDistance = -1.0f;
-	return payload;
-}
-
-#endif // !PN_CUDA
-
-// ──────────────────────────────────────────────
-// CUDA GPU Rendering Path
-// ──────────────────────────────────────────────
-
-#ifdef PN_CUDA
-
-void Renderer::UploadSceneToGPU(const Scene& scene)
-{
-	// Pack Sphere data (glm::vec3 → float[3] for GPU compatibility)
-	m_GPUSpheres.resize(scene.Spheres.size());
-	for (size_t i = 0; i < scene.Spheres.size(); i++)
-	{
-		const auto& s = scene.Spheres[i];
-		m_GPUSpheres[i].Position[0] = s.Position.x;
-		m_GPUSpheres[i].Position[1] = s.Position.y;
-		m_GPUSpheres[i].Position[2] = s.Position.z;
-		m_GPUSpheres[i].Radius = s.Radius;
-		m_GPUSpheres[i].MaterialIndex = s.MaterialIndex;
-	}
-
-	// Pack Material data
-	m_GPUMaterials.resize(scene.Materials.size());
-	for (size_t i = 0; i < scene.Materials.size(); i++)
-	{
-		const auto& m = scene.Materials[i];
-		m_GPUMaterials[i].Albedo[0] = m.Albedo.x;
-		m_GPUMaterials[i].Albedo[1] = m.Albedo.y;
-		m_GPUMaterials[i].Albedo[2] = m.Albedo.z;
-		m_GPUMaterials[i].Roughness = m.Roughness;
-		m_GPUMaterials[i].Metallic = m.Metallic;
-		m_GPUMaterials[i].EmissionColor[0] = m.EmissionColor.x;
-		m_GPUMaterials[i].EmissionColor[1] = m.EmissionColor.y;
-		m_GPUMaterials[i].EmissionColor[2] = m.EmissionColor.z;
-		m_GPUMaterials[i].EmissionPower = m.EmissionPower;
-	}
-
-	CUDARenderer_UploadScene(
-		m_CUDAState.get(),
-		m_GPUSpheres.data(),
-		static_cast<uint32_t>(m_GPUSpheres.size()),
-		m_GPUMaterials.data(),
-		static_cast<uint32_t>(m_GPUMaterials.size())
-	);
-}
-
-void Renderer::RenderGPU(const Scene& scene, const Camera& camera)
-{
-	if (!m_CUDAState || !m_FinalImage)
-		return;
-
-	const uint32_t width = m_FinalImage->GetWidth();
-	const uint32_t height = m_FinalImage->GetHeight();
-	if (width == 0 || height == 0) return;
-
-	// Sync interop toggle from settings (requires re-creation on enable)
-	if (m_Settings.EnableInterop != m_InteropEnabled)
-	{
-		m_InteropEnabled = m_Settings.EnableInterop;
-		if (m_InteropEnabled)
-		{
-			try
-			{
-				m_Interop = std::make_unique<VkCUDAInterop>(width, height);
-				CUDARenderer_SetOutputBuffer(m_CUDAState.get(), m_Interop->GetCUDADevicePtr());
-			}
-			catch (...)
-			{
-				std::fprintf(stderr, "[Interop] Failed to create VkCUDAInterop on toggle\n");
-				m_Interop.reset();
-				m_InteropEnabled = false;
-				m_Settings.EnableInterop = false;
-			}
-		}
-		else
-		{
-			m_Interop.reset();
-			CUDARenderer_SetOutputBuffer(m_CUDAState.get(), nullptr);
-		}
-	}
-
-	// Upload scene data only when changed (tracked by scene version)
-	if (scene.Version != m_LastSceneVersion)
-	{
-		UploadSceneToGPU(scene);
-		m_LastSceneVersion = scene.Version;
-	}
-
-	// Upload camera position
-	const glm::vec3& camPos = camera.GetPosition();
-	CUDARenderer_SetCameraPosition(
-		m_CUDAState.get(), camPos.x, camPos.y, camPos.z
-	);
-
-	// Upload ray directions — only when camera moved or viewport resized
-	if (m_RayDirsDirty)
-	{
-		const auto& rayDirs = camera.GetRayDirections();
-		m_GPURayDirs.resize(rayDirs.size());
-		for (size_t i = 0; i < rayDirs.size(); i++)
-		{
-			m_GPURayDirs[i].x = rayDirs[i].x;
-			m_GPURayDirs[i].y = rayDirs[i].y;
-			m_GPURayDirs[i].z = rayDirs[i].z;
-		}
-		CUDARenderer_UploadRayDirections(
-			m_CUDAState.get(),
-			m_GPURayDirs.data(),
-			static_cast<uint32_t>(m_GPURayDirs.size())
-		);
-		m_RayDirsDirty = false;
-	}
-
-	// Update settings
-	CUDARenderer_SetSettings(
-		m_CUDAState.get(),
-		m_Settings.MaxBounces
-	);
-
-	// Launch CUDA render kernel
-	CUDARenderer_Render(m_CUDAState.get(), m_FrameIndex);
-
-#ifdef PN_OPTIX
-	// Denoise pass: run OptiX on the averaged HDR buffer, then re-convert to RGBA
-	if (m_Settings.EnableDenoising)
-	{
-		cudaStream_t stream = (cudaStream_t)CUDARenderer_GetComputeStream(m_CUDAState.get());
-		if (!m_Denoiser.IsValid())
-			m_Denoiser.Initialize(width, height, stream);
-
-		float4* d_denoiseBuf = (float4*)CUDARenderer_GetDenoiseBuffer(m_CUDAState.get());
-		if (d_denoiseBuf && m_Denoiser.IsValid())
-		{
-			m_Denoiser.Denoise(d_denoiseBuf, d_denoiseBuf, width, height, stream);
-			CUDARenderer_ConvertDenoisedToRGBA(m_CUDAState.get(), stream);
-		}
-	}
-#endif
-
-	// Download output image from GPU (skip D2H when interop writes directly to Vulkan)
-	if (m_InteropEnabled && m_Interop)
-	{
-		m_Interop->SyncCUDAComplete((cudaStream_t)CUDARenderer_GetComputeStream(m_CUDAState.get()));
-	}
-	else
-	{
-		CUDARenderer_GetOutput(
-			m_CUDAState.get(),
-			m_ImageData.data(),
-			width * height * sizeof(uint32_t)
-		);
-	}
-}
-
-#endif // PN_CUDA
