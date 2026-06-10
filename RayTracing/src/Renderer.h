@@ -5,17 +5,11 @@
 #include "Camera.h"
 #include "Ray.h"
 #include "Scene.h"
-
-#ifdef PN_OPTIX
-#include "OptiXDenoiser.h"
-#endif
-
-#ifdef PN_CUDA
-#include "VkCUDAInterop.h"  // Must precede CUDARenderer.h — defines CUDART_VERSION so float3 guard works
-#include "CUDARenderer.h"
-#endif
+#include "IRenderBackend.h"
 
 #include <memory>
+#include <vector>
+#include <cstdint>
 
 #include <glm/glm.hpp>
 
@@ -49,79 +43,21 @@ public:
 	[[nodiscard]] std::shared_ptr<Peanut::Image> GetFinalImage() const { return m_FinalImage; }
 
 	void ResetFrameIndex() { m_FrameIndex = 1; }
-	void MarkRayDirsDirty() { m_RayDirsDirty = true; }
+	void MarkRayDirsDirty();
 
 	Settings& GetSettings() { return m_Settings; }
-
-private:
-	struct HitPayLoad
-	{
-		float HitDistance;
-		glm::vec3 WorldPosition;
-		glm::vec3 WorldNormal;
-
-		int ObjectIndex;
-	};
-
-#ifdef PN_CUDA
-	// GPU rendering path
-	void RenderGPU(const Scene& scene, const Camera& camera);
-	void UploadSceneToGPU(const Scene& scene);
-	// Scene data is uploaded every frame (ImGui modifies Scene directly)
-#else
-	// CPU rendering path
-	[[nodiscard]] glm::vec4 PerPixel(uint32_t x, uint32_t y) const;	// RayGen Shader
-	[[nodiscard]] HitPayLoad TraceRay(const Ray& ray) const;
-	[[nodiscard]] HitPayLoad ClosestHit(
-		const Ray& ray,
-		float hitDistance,
-		int objectIndex
-	) const noexcept;
-	static HitPayLoad Miss(const Ray& ray) noexcept;
-#endif
 
 private:
 	std::shared_ptr<Peanut::Image> m_FinalImage;
 
 	Settings m_Settings;
 
-	std::vector<uint32_t> m_ImageHorizontalIterator, m_ImageVerticalIterator;
+	std::unique_ptr<IRenderBackend> m_Backend;
 
 	const Scene* m_ActiveScene = nullptr;
 	const Camera* m_ActiveCamera = nullptr;
 
 	std::vector<uint32_t>  m_ImageData;
-	#ifndef PN_CUDA
-	std::vector<glm::vec4> m_AccumulationData;
-	#endif
 
 	uint32_t m_FrameIndex = 1;
-	bool m_RayDirsDirty = true;  // Tracks if ray directions need re-upload to GPU
-
-#ifdef PN_CUDA
-	std::unique_ptr<CUDARenderState, CUDARenderStateDeleter> m_CUDAState;
-	std::unique_ptr<VkCUDAInterop> m_Interop;
-	bool m_InteropEnabled = false;
-	std::vector<GPUPackedSphere>   m_GPUSpheres;
-	std::vector<GPUPackedMaterial> m_GPUMaterials;
-	std::vector<float3>            m_GPURayDirs;
-	uint32_t m_LastSceneVersion = UINT32_MAX;  // Force first upload
-#ifdef PN_OPTIX
-	OptiXDenoiser m_Denoiser;
-#endif
-#endif
-
-#ifdef PN_ISPC
-	uint32_t m_LastISPCSceneVersion = UINT32_MAX;  // Track scene changes to skip SoA repacking
-	// ISPC SoA packing buffers (reused across frames to avoid reallocation)
-	std::vector<float> m_ISPCRayDirX, m_ISPCRayDirY, m_ISPCRayDirZ;
-	std::vector<float> m_ISCPSphPosX, m_ISCPSphPosY, m_ISCPSphPosZ;
-	std::vector<float> m_ISCPSphRadius;
-	std::vector<int32_t> m_ISCPSphMatIdx;
-	std::vector<float> m_ISPCMatAlbedoR, m_ISPCMatAlbedoG, m_ISPCMatAlbedoB;
-	std::vector<float> m_ISPCMatRoughness, m_ISPCMatMetallic;
-	std::vector<float> m_ISPCMatEmissionR, m_ISPCMatEmissionG, m_ISPCMatEmissionB;
-	std::vector<float> m_ISPCMatEmissionPower;
-	std::vector<float> m_ISPCOutputR, m_ISPCOutputG, m_ISPCOutputB, m_ISPCOutputA;
-#endif
 };
