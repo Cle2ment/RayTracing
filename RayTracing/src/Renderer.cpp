@@ -20,11 +20,11 @@ static std::unique_ptr<IRenderBackend> CreateBackend()
 {
 #ifdef PN_CUDA
 	auto gpuBackend = std::make_unique<CUDABackend>();
-	// TODO (MOD-02b): check init success, fallback to CPUBackend on failure
-	return gpuBackend;
-#else
-	return std::make_unique<CPUBackend>();
+	if (gpuBackend->IsValid())
+		return gpuBackend;
+	// GPU init failed — fall back to CPU (MOD-02b)
 #endif
+	return std::make_unique<CPUBackend>();
 }
 
 // ──────────────────────────────────────────────

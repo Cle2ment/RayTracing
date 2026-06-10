@@ -35,6 +35,8 @@ public:
 	CUDABackend();
 	~CUDABackend() noexcept override = default;
 
+	[[nodiscard]] bool IsValid() const noexcept { return m_CUDAState != nullptr; }
+
 	CUDABackend(const CUDABackend&) = delete;
 	CUDABackend& operator=(const CUDABackend&) = delete;
 	CUDABackend(CUDABackend&&) = delete;
