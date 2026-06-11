@@ -1,8 +1,8 @@
 # RayTracing — Project Knowledge Base
 
 **Generated:** 2026-05-28
-**Updated:**   2026-06-11 (Phase 1 closed, #13→#23 merged, Batch 1-11 complete.  Next: OptiX fix.)
-**Commit:** `a875cad`
+**Updated:**   2026-06-11 (Phase 1 closed, #13→#24 merged, Batch 1-12 complete.)
+**Commit:** `5574bfe`
 **Branch:** `master`
 
 ## OVERVIEW
@@ -276,7 +276,7 @@ Batches in planned execution sequence with current status.
 | Batch 9 | MOD-02b CPU fallback (IRenderBackend) | ✅ #22 merged |
 | Batch 10 | P2-16 Peanut static globals | ✅ #21 merged |
 | Batch 11 | GPU BVH | ✅ #23 merged |
-| Batch 12 | OptiX context bridge fix | ⬚ **NEXT** |
+| Batch 12 | OptiX context bridge fix | ✅ #24 merged |
 
 > **Update rule:** After completing each batch, mark it ✅, bump the NEXT indicator to the following batch, and update the page header date/commit.
 
@@ -288,4 +288,4 @@ Batches in planned execution sequence with current status.
 | P1 | MOD-02b | ✅ CPU fallback on GPU error — IRenderBackend abstraction |
 | P2 | P2-16 | ✅ Peanut mutable static globals → Application members (opportunistic) |
 | P3 | GPU BVH | ✅ Bounding volume hierarchy — CPU + GPU BVH traversal |
-| P4 | OptiX fix | Driver/Runtime API context bridge fix |
+| P4 | OptiX fix | ✅ Driver/Runtime API context bridge fix |
