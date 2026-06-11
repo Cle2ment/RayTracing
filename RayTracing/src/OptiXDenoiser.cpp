@@ -2,6 +2,8 @@
 
 #include "OptiXDenoiser.h"
 
+#include <cuda.h>  // Driver API for context bridging
+
 // Define the global OptiX function table (required by optix_stubs.h)
 // Must be defined in exactly one translation unit.
 OptixFunctionTable g_optixFunctionTable_118 = {};
@@ -39,34 +41,9 @@ OptiXDenoiser::OptiXDenoiser()
     {
         std::fprintf(stderr, "[OptiX] optixInit failed: %s\n",
                      optixGetErrorString(result));
-        return;
     }
-
-    // Retrieve current CUDA context (must already exist)
-    CUcontext cuCtx = nullptr;
-    CUresult cuRes = cuCtxGetCurrent(&cuCtx);
-    if (cuRes != CUDA_SUCCESS || cuCtx == nullptr)
-    {
-        CUdevice cuDevice;
-        cuCtxGetDevice(&cuDevice);
-        cuRes = cuDevicePrimaryCtxRetain(&cuCtx, cuDevice);
-        if (cuRes != CUDA_SUCCESS)
-        {
-            std::fprintf(stderr, "[OptiX] Failed to get CUDA context\n");
-            return;
-        }
-    }
-
-    OptixDeviceContextOptions ctxOpts = {};
-    result = optixDeviceContextCreate(cuCtx, &ctxOpts, &m_optixContext);
-    if (result != OPTIX_SUCCESS)
-    {
-        std::fprintf(stderr, "[OptiX] optixDeviceContextCreate failed: %s\n",
-                     optixGetErrorString(result));
-        return;
-    }
-
-    std::printf("[OptiX] Context created successfully\n");
+    // Context creation is deferred to Initialize() —
+    // the Runtime API CUDA context must exist first (CUDARenderer_Init).
 }
 
 OptiXDenoiser::~OptiXDenoiser() noexcept
@@ -80,8 +57,54 @@ OptiXDenoiser::~OptiXDenoiser() noexcept
 
 bool OptiXDenoiser::Initialize(uint32_t width, uint32_t height, cudaStream_t stream)
 {
-    if (!m_optixContext || width == 0 || height == 0)
+    if (width == 0 || height == 0)
         return false;
+
+    // ── Lazy context creation: bridge Runtime API GPU to Driver API ──
+    if (!m_optixContext)
+    {
+        // Get the Runtime API's current device (CUDARenderer_Init must have been called)
+        int runtimeDevice = 0;
+        cudaError_t cudaErr = cudaGetDevice(&runtimeDevice);
+        if (cudaErr != cudaSuccess)
+        {
+            std::fprintf(stderr, "[OptiX] cudaGetDevice failed: %s\n",
+                         cudaGetErrorString(cudaErr));
+            return false;
+        }
+
+        // Bridge: Runtime API device → Driver API device → primary context
+        CUdevice cuDevice = 0;
+        CUresult cuRes = cuDeviceGet(&cuDevice, runtimeDevice);
+        if (cuRes != CUDA_SUCCESS)
+        {
+            std::fprintf(stderr, "[OptiX] cuDeviceGet failed (code %d)\n",
+                         static_cast<int>(cuRes));
+            return false;
+        }
+
+        CUcontext cuCtx = nullptr;
+        cuRes = cuDevicePrimaryCtxRetain(&cuCtx, cuDevice);
+        if (cuRes != CUDA_SUCCESS)
+        {
+            std::fprintf(stderr, "[OptiX] cuDevicePrimaryCtxRetain failed (code %d)\n",
+                         static_cast<int>(cuRes));
+            return false;
+        }
+
+        OptixDeviceContextOptions ctxOpts = {};
+        OptixResult optixRes = optixDeviceContextCreate(cuCtx, &ctxOpts, &m_optixContext);
+        if (optixRes != OPTIX_SUCCESS)
+        {
+            std::fprintf(stderr, "[OptiX] optixDeviceContextCreate failed: %s\n",
+                         optixGetErrorString(optixRes));
+            return false;
+        }
+
+        std::printf("[OptiX] Context created successfully (device %d)\n", runtimeDevice);
+    }
+
+    // ── Lazy denoiser creation: resolve width/height ──
 
     Cleanup();  // Free previous denoiser resources
 
