@@ -24,6 +24,14 @@ struct GPUSphere
 static_assert(sizeof(GPUSphere) == 20, "GPUSphere must be 20 bytes — must match GPUPackedSphere");
 static_assert(alignof(GPUSphere) == 4,  "GPUSphere alignment must match GPUPackedSphere");
 
+struct GPUBVHNode
+{
+    float3 BoundsMin;  // AABB minimum corner
+    float3 BoundsMax;  // AABB maximum corner
+    int    LeftFirst;  // <0 = leaf (encoded sphere index), >=0 = internal node index
+    int    Count;      // leaf: sphere count, internal: right child index
+};
+
 struct GPUMaterial
 {
     float3 Albedo;
@@ -53,8 +61,11 @@ struct GPUScene
 {
     GPUSphere*   Spheres;
     GPUMaterial* Materials;
+    GPUBVHNode*  BVHNodes;       // Device BVH node array
+    int*         SphereIndices;  // Sorted sphere index array (for leaf resolution)
     uint32_t     SphereCount;
     uint32_t     MaterialCount;
+    uint32_t     BVHNodeCount;   // Number of BVH nodes (0 = no BVH)
 };
 
 // ──────────────────────────────────────────────

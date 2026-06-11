@@ -189,40 +189,102 @@ __device__ inline GPUHitPayload TraceRay(
     const GPURay& ray,
     const GPUScene& scene)
 {
-    int closestSphere = -1;
-    float hitDistance = 1e30f; // FLT_MAX equivalent
-
-    for (uint32_t i = 0; i < scene.SphereCount; i++)
+    if (scene.BVHNodeCount == 0 || !scene.BVHNodes || !scene.SphereIndices)
     {
-        const GPUSphere& sphere = scene.Spheres[i];
+        return Miss(ray);
+    }
 
-        float3 origin = make_float3(
-            ray.Origin.x - sphere.Position.x,
-            ray.Origin.y - sphere.Position.y,
-            ray.Origin.z - sphere.Position.z
-        );
+    int closestSphere = -1;
+    float hitDistance = 1e30f;
 
-        // Quadratic: a*t^2 + b*t + c = 0, where a = dot(dir,dir) ≈ 1
-        float a = ray.Direction.x * ray.Direction.x +
-                  ray.Direction.y * ray.Direction.y +
-                  ray.Direction.z * ray.Direction.z;
-        float b = 2.0f * (origin.x * ray.Direction.x +
-                          origin.y * ray.Direction.y +
-                          origin.z * ray.Direction.z);
-        float c = origin.x * origin.x +
-                  origin.y * origin.y +
-                  origin.z * origin.z -
-                  sphere.Radius * sphere.Radius;
+    // Precompute inverse ray direction for AABB slab test
+    float3 invDir = make_float3(
+        1.0f / (fabsf(ray.Direction.x) > 1e-8f ? ray.Direction.x : (ray.Direction.x >= 0.0f ? 1e-8f : -1e-8f)),
+        1.0f / (fabsf(ray.Direction.y) > 1e-8f ? ray.Direction.y : (ray.Direction.y >= 0.0f ? 1e-8f : -1e-8f)),
+        1.0f / (fabsf(ray.Direction.z) > 1e-8f ? ray.Direction.z : (ray.Direction.z >= 0.0f ? 1e-8f : -1e-8f))
+    );
 
-        float discriminant = b * b - 4.0f * a * c;
-        if (discriminant < 0.0f)
+    // Stack-based BVH traversal (max 64 levels)
+    int stack[64];
+    int stackPtr = 0;
+    stack[stackPtr++] = 0;  // root node
+
+    while (stackPtr > 0)
+    {
+        int nodeIdx = stack[--stackPtr];
+        GPUBVHNode node = scene.BVHNodes[nodeIdx];
+
+        // AABB intersection test (slab method)
+        float tmin_x = (node.BoundsMin.x - ray.Origin.x) * invDir.x;
+        float tmax_x = (node.BoundsMax.x - ray.Origin.x) * invDir.x;
+        if (invDir.x < 0.0f) { float tmp = tmin_x; tmin_x = tmax_x; tmax_x = tmp; }
+
+        float tmin_y = (node.BoundsMin.y - ray.Origin.y) * invDir.y;
+        float tmax_y = (node.BoundsMax.y - ray.Origin.y) * invDir.y;
+        if (invDir.y < 0.0f) { float tmp = tmin_y; tmin_y = tmax_y; tmax_y = tmp; }
+
+        float tmin_z = (node.BoundsMin.z - ray.Origin.z) * invDir.z;
+        float tmax_z = (node.BoundsMax.z - ray.Origin.z) * invDir.z;
+        if (invDir.z < 0.0f) { float tmp = tmin_z; tmin_z = tmax_z; tmax_z = tmp; }
+
+        float tmin = fmaxf(fmaxf(tmin_x, tmin_y), fmaxf(tmin_z, 0.0f));
+        float tmax = fminf(fminf(tmax_x, tmax_y), tmax_z);
+
+        if (tmin > tmax || tmin > hitDistance)
             continue;
 
-        float closestT = (-b - sqrtf(discriminant)) / (2.0f * a);
-        if (closestT > 0.0f && closestT < hitDistance)
+        if (node.LeftFirst < 0)
         {
-            hitDistance = closestT;
-            closestSphere = static_cast<int>(i);
+            // Leaf node: intersect all spheres via sphere index indirection
+            int first = ~(node.LeftFirst);  // Decode begin offset into SphereIndices
+            int count = node.Count;
+
+            for (int i = 0; i < count; i++)
+            {
+                int sphereIdx = scene.SphereIndices[first + i];
+                const GPUSphere& sphere = scene.Spheres[sphereIdx];
+
+                float3 origin = make_float3(
+                    ray.Origin.x - sphere.Position.x,
+                    ray.Origin.y - sphere.Position.y,
+                    ray.Origin.z - sphere.Position.z
+                );
+
+                float a = ray.Direction.x * ray.Direction.x +
+                          ray.Direction.y * ray.Direction.y +
+                          ray.Direction.z * ray.Direction.z;
+                float b = 2.0f * (origin.x * ray.Direction.x +
+                                  origin.y * ray.Direction.y +
+                                  origin.z * ray.Direction.z);
+                float c = origin.x * origin.x +
+                          origin.y * origin.y +
+                          origin.z * origin.z -
+                          sphere.Radius * sphere.Radius;
+
+                float discriminant = b * b - 4.0f * a * c;
+                if (discriminant < 0.0f)
+                    continue;
+
+                float closestT = (-b - sqrtf(discriminant)) / (2.0f * a);
+                if (closestT > 0.0f && closestT < hitDistance)
+                {
+                    hitDistance = closestT;
+                    closestSphere = sphereIdx;
+                }
+            }
+        }
+        else
+        {
+            // Internal node: push children (matches CPU BVH: LeftFirst=left, Count=right)
+            int leftChild = node.LeftFirst;
+            int rightChild = node.Count;
+
+            // Push far child first, then near child (near will be popped first)
+            if (stackPtr + 2 <= 64)
+            {
+                stack[stackPtr++] = rightChild;
+                stack[stackPtr++] = leftChild;
+            }
         }
     }
 

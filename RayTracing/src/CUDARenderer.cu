@@ -50,6 +50,8 @@ struct CUDARenderState
     GPUSphere*   d_Spheres;           // Device scene spheres
     GPUMaterial* d_Materials;         // Device scene materials
     float3*      d_RayDirections;     // Device ray directions
+    GPUBVHNode*  d_BVHNodes;          // Device BVH node array
+    int*         d_SphereIndices;     // Device sorted sphere indices for leaf resolution
 
     GPUScene   gpuScene;             // Device scene descriptor
     GPUCamera  gpuCamera;            // Device camera descriptor
@@ -61,6 +63,8 @@ struct CUDARenderState
 
     uint32_t allocatedSphereCount;   // Track current GPU allocation size
     uint32_t allocatedMaterialCount;
+    uint32_t allocatedBVHNodeCount;   // Track BVH node allocation size
+    uint32_t allocatedSphereIndexCount; // Track sphere index allocation size
 
     cudaStream_t uploadStream;          // Async stream for H2D transfers
     cudaStream_t computeStream;         // Async stream for kernel launches
@@ -85,6 +89,8 @@ CUDARenderState* CUDARenderer_Create()
     state->d_Spheres = nullptr;
     state->d_Materials = nullptr;
     state->d_RayDirections = nullptr;
+    state->d_BVHNodes = nullptr;
+    state->d_SphereIndices = nullptr;
 
     state->imageWidth = 0;
     state->imageHeight = 0;
@@ -92,6 +98,8 @@ CUDARenderState* CUDARenderer_Create()
 
     state->allocatedSphereCount = 0;
     state->allocatedMaterialCount = 0;
+    state->allocatedBVHNodeCount = 0;
+    state->allocatedSphereIndexCount = 0;
 
     return state;
 }
@@ -107,6 +115,8 @@ void CUDARenderer_Destroy(CUDARenderState* state)
     if (state->d_Spheres)            cudaFree(state->d_Spheres);
     if (state->d_Materials)          cudaFree(state->d_Materials);
     if (state->d_RayDirections)      cudaFree(state->d_RayDirections);
+    if (state->d_BVHNodes)           cudaFree(state->d_BVHNodes);
+    if (state->d_SphereIndices)      cudaFree(state->d_SphereIndices);
 
     if (state->streamsCreated)
     {
@@ -267,6 +277,63 @@ void CUDARenderer_UploadScene(
     state->gpuScene.Materials = state->d_Materials;
     state->gpuScene.SphereCount = sphereCount;
     state->gpuScene.MaterialCount = materialCount;
+    state->gpuScene.BVHNodes = state->d_BVHNodes;
+    state->gpuScene.BVHNodeCount = state->allocatedBVHNodeCount;
+    state->gpuScene.SphereIndices = state->d_SphereIndices;
+}
+
+void CUDARenderer_UploadBVH(
+    CUDARenderState* state,
+    const void* nodes, uint32_t nodeCount,
+    const void* sphereIndices, uint32_t indexCount)
+{
+    if (!state || !state->initialized) return;
+
+    // Reallocate BVH nodes only when count changes
+    if (nodeCount != state->allocatedBVHNodeCount)
+    {
+        if (state->d_BVHNodes) cudaFree(state->d_BVHNodes);
+        state->d_BVHNodes = nullptr;
+        state->allocatedBVHNodeCount = 0;
+
+        if (nodeCount > 0)
+        {
+            CUDA_CHECK(cudaMalloc(&state->d_BVHNodes, nodeCount * sizeof(GPUBVHNode)));
+            state->allocatedBVHNodeCount = nodeCount;
+        }
+    }
+
+    // Reallocate sphere indices only when count changes
+    if (indexCount != state->allocatedSphereIndexCount)
+    {
+        if (state->d_SphereIndices) cudaFree(state->d_SphereIndices);
+        state->d_SphereIndices = nullptr;
+        state->allocatedSphereIndexCount = 0;
+
+        if (indexCount > 0)
+        {
+            CUDA_CHECK(cudaMalloc(&state->d_SphereIndices, indexCount * sizeof(int)));
+            state->allocatedSphereIndexCount = indexCount;
+        }
+    }
+
+    if (nodeCount > 0 && state->d_BVHNodes)
+    {
+        CUDA_CHECK(cudaMemcpyAsync(state->d_BVHNodes, nodes,
+                   nodeCount * sizeof(GPUBVHNode), cudaMemcpyHostToDevice,
+                   state->uploadStream));
+    }
+
+    if (indexCount > 0 && state->d_SphereIndices)
+    {
+        CUDA_CHECK(cudaMemcpyAsync(state->d_SphereIndices, sphereIndices,
+                   indexCount * sizeof(int), cudaMemcpyHostToDevice,
+                   state->uploadStream));
+    }
+
+    state->gpuScene.BVHNodes = state->d_BVHNodes;
+    state->gpuScene.BVHNodeCount = nodeCount;
+    state->gpuScene.SphereIndices = state->d_SphereIndices;
 }
 
 void CUDARenderer_UploadRayDirections(

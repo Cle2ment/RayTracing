@@ -4,6 +4,7 @@
 #include "Camera.h"
 #include "Ray.h"
 #include "Scene.h"
+#include "BVH.h"
 
 #include <vector>
 #include <cstdint>
@@ -50,6 +51,9 @@ private:
 
 	std::vector<uint32_t> m_ImageHorizontalIterator, m_ImageVerticalIterator;
 	std::vector<glm::vec4> m_AccumulationData;
+
+	BVH m_BVH;
+	uint32_t m_LastBvhSceneVersion = UINT32_MAX;  // Rebuild BVH on scene change
 
 #ifdef PN_ISPC
 	uint32_t m_LastISPCSceneVersion = UINT32_MAX;  // Track scene changes to skip SoA repacking

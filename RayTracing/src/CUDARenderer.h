@@ -70,6 +70,12 @@ void CUDARenderer_SetSettings(
 // Debug: fills output with checkerboard test pattern
 void CUDARenderer_DebugFill(CUDARenderState* state);
 
+// BVH upload (host → device)
+void CUDARenderer_UploadBVH(
+    CUDARenderState* state,
+    const void* nodes, uint32_t nodeCount,
+    const void* sphereIndices, uint32_t indexCount);
+
 #ifdef __cplusplus
 }
 #endif
@@ -125,5 +131,16 @@ struct GPUPackedMaterial
 };
 static_assert(sizeof(GPUPackedMaterial) == 36, "GPUPackedMaterial must be 36 bytes — must match GPUMaterial");
 static_assert(alignof(GPUPackedMaterial) == 4,  "GPUPackedMaterial alignment must match GPUMaterial");
+
+// Memory layout must match GPUBVHNode in CUDATypes.cuh
+struct GPUPackedBVHNode
+{
+    float BoundsMin[3];  // AABB minimum corner
+    float BoundsMax[3];  // AABB maximum corner
+    int   LeftFirst;     // <0 = leaf (~sphere index), >=0 = internal node index
+    int   Count;         // leaf: sphere count, internal: right child index
+};
+static_assert(sizeof(GPUPackedBVHNode) == 32, "GPUPackedBVHNode must be 32 bytes");
+static_assert(alignof(GPUPackedBVHNode) == 4, "GPUPackedBVHNode alignment must match GPUBVHNode");
 
 #endif // __cplusplus
