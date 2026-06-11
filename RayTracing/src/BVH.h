@@ -158,10 +158,12 @@ public:
 	}
 
 	[[nodiscard]] const std::vector<BVHNode>& Nodes() const noexcept { return m_Nodes; }
+	[[nodiscard]] const std::vector<int>& SphereIndices() const noexcept { return m_SphereIndices; }
 	[[nodiscard]] bool IsEmpty() const noexcept { return m_Nodes.empty(); }
 
 private:
 	int BuildRecursive(const Scene& scene, std::vector<int>& sphereIndices, int begin, int end);
 
 	std::vector<BVHNode> m_Nodes;
+	std::vector<int>    m_SphereIndices;
 };

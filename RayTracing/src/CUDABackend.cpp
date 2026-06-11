@@ -5,6 +5,7 @@
 #include "Scene.h"
 #include "Camera.h"
 #include "Constants.h"
+#include "BVH.h"
 
 #include "Peanut/Application.h"
 
@@ -148,6 +149,35 @@ void CUDABackend::Render(
 	{
 		UploadSceneToGPU(scene);
 		m_LastSceneVersion = scene.Version;
+
+		// Rebuild BVH and upload to GPU
+		m_BVH.Build(scene);
+		const auto& bvhNodes = m_BVH.Nodes();
+
+		m_GPUBVHNodes.resize(bvhNodes.size());
+		for (size_t i = 0; i < bvhNodes.size(); i++)
+		{
+			m_GPUBVHNodes[i].BoundsMin[0] = bvhNodes[i].Bounds.Min.x;
+			m_GPUBVHNodes[i].BoundsMin[1] = bvhNodes[i].Bounds.Min.y;
+			m_GPUBVHNodes[i].BoundsMin[2] = bvhNodes[i].Bounds.Min.z;
+			m_GPUBVHNodes[i].BoundsMax[0] = bvhNodes[i].Bounds.Max.x;
+			m_GPUBVHNodes[i].BoundsMax[1] = bvhNodes[i].Bounds.Max.y;
+			m_GPUBVHNodes[i].BoundsMax[2] = bvhNodes[i].Bounds.Max.z;
+			m_GPUBVHNodes[i].LeftFirst = bvhNodes[i].LeftFirst;
+			m_GPUBVHNodes[i].Count     = bvhNodes[i].Count;
+		}
+
+		// Copy sorted sphere indices for GPU leaf resolution
+		const auto& sphereIndices = m_BVH.SphereIndices();
+		m_GPUSphereIndices = sphereIndices;
+
+		CUDARenderer_UploadBVH(
+			m_CUDAState.get(),
+			m_GPUBVHNodes.data(),
+			static_cast<uint32_t>(m_GPUBVHNodes.size()),
+			m_GPUSphereIndices.data(),
+			static_cast<uint32_t>(m_GPUSphereIndices.size())
+		);
 	}
 
 	// Upload camera position

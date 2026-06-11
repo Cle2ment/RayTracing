@@ -20,6 +20,9 @@ void BVH::Build(const Scene& scene)
 
 	// Build root
 	BuildRecursive(scene, indices, 0, static_cast<int>(sphereCount));
+
+	// Save sorted sphere indices for GPU upload
+	m_SphereIndices = std::move(indices);
 }
 
 int BVH::BuildRecursive(const Scene& scene, std::vector<int>& sphereIndices, int begin, int end)

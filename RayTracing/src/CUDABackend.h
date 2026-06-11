@@ -6,6 +6,7 @@
 
 #include "VkCUDAInterop.h"  // Must precede CUDARenderer.h — defines CUDART_VERSION so float3 guard works
 #include "CUDARenderer.h"
+#include "BVH.h"
 
 #ifdef PN_OPTIX
 #include "OptiXDenoiser.h"
@@ -73,10 +74,15 @@ private:
 	std::vector<GPUPackedSphere>   m_GPUSpheres;
 	std::vector<GPUPackedMaterial> m_GPUMaterials;
 	std::vector<float3>            m_GPURayDirs;
+	std::vector<GPUPackedBVHNode>  m_GPUBVHNodes;    // Packed BVH nodes for cudaMemcpy
+	std::vector<int>               m_GPUSphereIndices; // Sorted sphere indices for leaf resolution
 
 	// ── Dirty tracking ──
 	uint32_t m_LastSceneVersion = UINT32_MAX;  // Force first upload
 	bool     m_RayDirsDirty     = true;
+
+	// ── BVH ──
+	BVH m_BVH;
 
 	// ── Viewport ──
 	uint32_t m_ImageWidth  = 0;
