@@ -48,6 +48,12 @@ void CPUBackend::Render(
 	m_ActiveCamera = &camera;
 	m_MaxBounces = maxBounces;
 
+	if (scene.Version != m_LastBvhSceneVersion)
+	{
+		m_BVH.Build(scene);
+		m_LastBvhSceneVersion = scene.Version;
+	}
+
 	if (frameIndex == 1)
 		memset(
 			m_AccumulationData.data(),
@@ -314,35 +320,31 @@ glm::vec4 CPUBackend::PerPixel(uint32_t x, uint32_t y) const
 
 CPUBackend::HitPayLoad CPUBackend::TraceRay(const Ray& ray) const
 {
-	int closestSphere = -1;
-	float hitDistance = std::numeric_limits<float>::max();
+	if (m_BVH.IsEmpty())
+		return Miss(ray);
 
-	for (size_t i = 0; i < m_ActiveScene->Spheres.size(); i++)
-	{
-		const auto& [
-			Position,
-			Radius,
-			MaterialIndex
-		] = m_ActiveScene->Spheres[i];
-		glm::vec3 origin = ray.Origin - Position;
-
-		const float a = glm::dot(ray.Direction, ray.Direction);
-		const float b = 2.0f * glm::dot(origin, ray.Direction);
-		const float c = glm::dot(origin, origin) - Radius * Radius;
-
-		const float discriminant = b * b - 4.0f * a * c;
-		if (discriminant < 0.0f)
-			continue;
-
-		if (
-			const float closestT = (-b - glm::sqrt(discriminant)) / (2.0f * a);
-			closestT > 0.0f && closestT < hitDistance
-			)
+	const auto [hitDistance, closestSphere] = m_BVH.Trace(ray,
+		[this](const Ray& r, int sphereIndex) -> std::pair<float, int>
 		{
-			hitDistance = closestT;
-			closestSphere = static_cast<int>(i);
-		}
-	}
+			const auto& [Position, Radius, MaterialIndex]
+				= m_ActiveScene->Spheres[sphereIndex];
+			(void)MaterialIndex;
+
+			const glm::vec3 origin = r.Origin - Position;
+
+			const float a = glm::dot(r.Direction, r.Direction);
+			const float b = 2.0f * glm::dot(origin, r.Direction);
+			const float c = glm::dot(origin, origin) - Radius * Radius;
+
+			const float discriminant = b * b - 4.0f * a * c;
+			if (discriminant < 0.0f)
+				return { -1.0f, -1 };
+
+			const float closestT = (-b - glm::sqrt(discriminant)) / (2.0f * a);
+			if (closestT > 0.0f)
+				return { closestT, sphereIndex };
+			return { -1.0f, -1 };
+		});
 
 	if (closestSphere < 0)
 		return Miss(ray);
