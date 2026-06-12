@@ -67,5 +67,10 @@ private:
 	std::vector<float> m_ISPCMatEmissionR, m_ISPCMatEmissionG, m_ISPCMatEmissionB;
 	std::vector<float> m_ISPCMatEmissionPower;
 	std::vector<float> m_ISPCOutputR, m_ISPCOutputG, m_ISPCOutputB, m_ISPCOutputA;
+	// BVH SoA packing buffers
+	std::vector<float> m_ISPCBvhMinX, m_ISPCBvhMinY, m_ISPCBvhMinZ;
+	std::vector<float> m_ISPCBvhMaxX, m_ISPCBvhMaxY, m_ISPCBvhMaxZ;
+	std::vector<int32_t> m_ISPCBvhLeftFirst, m_ISPCBvhCount;
+	std::vector<int32_t> m_ISPCBvhSphereIndices;
 #endif
 };

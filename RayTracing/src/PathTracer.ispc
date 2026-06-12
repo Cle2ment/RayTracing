@@ -135,6 +135,103 @@ static inline void SampleGGX_VNDF(
 // Returns: hitDistance (>0 = hit, <0 = miss), and sets closestSphere index
 // The quadratic: a*t^2 + b*t + c = 0  where a = dot(dir,dir) ≈ 1
 
+// ── BVH-accelerated ray traversal (stack-based, per-lane varying stack) ──
+// Uses the same BVH encoding as CPU/GPU paths:
+//   Internal: LeftFirst = left child index, Count = right child index
+//   Leaf:     LeftFirst < 0 (encoded ~begin into bvhSphereIndices), Count = sphere count
+
+static inline float TraceRayBVH(
+    varying float rayOrigX, varying float rayOrigY, varying float rayOrigZ,
+    varying float rayDirX,  varying float rayDirY,  varying float rayDirZ,
+    uniform float sphPosX[], uniform float sphPosY[], uniform float sphPosZ[],
+    uniform float sphRadius[], uniform int   sphMatIdx[],
+    uniform float bvhMinX[], uniform float bvhMinY[], uniform float bvhMinZ[],
+    uniform float bvhMaxX[], uniform float bvhMaxY[], uniform float bvhMaxZ[],
+    uniform int   bvhLeftFirst[], uniform int bvhCount[],
+    uniform int   bvhSphereIndices[], uniform int bvhNodeCount,
+    varying int& closestSphere
+) {
+    varying float hitDist = 1e30f;
+    closestSphere = -1;
+
+    // Precompute inverse ray direction for AABB slab test
+    varying float invX = (rayDirX != 0.0f) ? 1.0f / rayDirX : 1e30f;
+    varying float invY = (rayDirY != 0.0f) ? 1.0f / rayDirY : 1e30f;
+    varying float invZ = (rayDirZ != 0.0f) ? 1.0f / rayDirZ : 1e30f;
+    varying bool negX = (invX < 0.0f);
+    varying bool negY = (invY < 0.0f);
+    varying bool negZ = (invZ < 0.0f);
+
+    // Per-lane varying stack (ISPC handles varying arrays efficiently)
+    varying int stack[64];
+    varying int stackPtr = 0;
+    stack[stackPtr++] = 0;  // root node
+
+    while (stackPtr > 0) {
+        varying int nodeIdx = stack[--stackPtr];
+
+        // AABB slab test
+        varying float t1x = (bvhMinX[nodeIdx] - rayOrigX) * invX;
+        varying float t2x = (bvhMaxX[nodeIdx] - rayOrigX) * invX;
+        if (negX) { varying float t = t1x; t1x = t2x; t2x = t; }
+
+        varying float t1y = (bvhMinY[nodeIdx] - rayOrigY) * invY;
+        varying float t2y = (bvhMaxY[nodeIdx] - rayOrigY) * invY;
+        if (negY) { varying float t = t1y; t1y = t2y; t2y = t; }
+
+        varying float t1z = (bvhMinZ[nodeIdx] - rayOrigZ) * invZ;
+        varying float t2z = (bvhMaxZ[nodeIdx] - rayOrigZ) * invZ;
+        if (negZ) { varying float t = t1z; t1z = t2z; t2z = t; }
+
+        varying float tmin = max(max(t1x, t1y), t1z);
+        varying float tmax = min(min(t2x, t2y), t2z);
+
+        // AABB miss — skip this node
+        if (tmin > tmax || tmax < 0.0f || tmin > hitDist)
+            continue;
+
+        varying int leftFirst = bvhLeftFirst[nodeIdx];
+        varying int count     = bvhCount[nodeIdx];
+
+        if (leftFirst < 0) {
+            // Leaf node: intersect spheres (max 2, BVH threshold)
+            varying int first = ~leftFirst;
+            for (uniform int j = 0; j < 2; j++) {
+                if (j < count) {
+                    varying int sphereIdx = bvhSphereIndices[first + j];
+
+                    varying float ox = rayOrigX - sphPosX[sphereIdx];
+                    varying float oy = rayOrigY - sphPosY[sphereIdx];
+                    varying float oz = rayOrigZ - sphPosZ[sphereIdx];
+
+                    varying float a = rayDirX * rayDirX + rayDirY * rayDirY + rayDirZ * rayDirZ;
+                    varying float b = 2.0f * (ox * rayDirX + oy * rayDirY + oz * rayDirZ);
+                    varying float c = ox * ox + oy * oy + oz * oz
+                                    - sphRadius[sphereIdx] * sphRadius[sphereIdx];
+
+                    varying float disc = b * b - 4.0f * a * c;
+                    if (disc > 0.0f) {
+                        varying float t = (-b - sqrt(disc)) / (2.0f * a);
+                        if (t > 0.0f && t < hitDist) {
+                            hitDist = t;
+                            closestSphere = sphereIdx;
+                        }
+                    }
+                }
+            }
+        } else {
+            // Internal node: push children (far first, then near)
+            varying int left  = leftFirst;
+            varying int right = count;
+            stack[stackPtr++] = right;
+            stack[stackPtr++] = left;
+        }
+    }
+
+    return (closestSphere >= 0) ? hitDist : -1.0f;
+}
+
+// ── Brute-force sphere intersection (kept for reference / fallback) ──
 static inline float TraceRay(
     varying float rayOrigX, varying float rayOrigY, varying float rayOrigZ,
     varying float rayDirX,  varying float rayDirY,  varying float rayDirZ,
@@ -190,6 +287,11 @@ export void ISPCRenderPixels(
     uniform float outputR[], uniform float outputG[], uniform float outputB[], uniform float outputA[],
     // Counts & settings
     uniform int pixelCount, uniform int sphereCount,
+    // BVH (SoA layout)
+    uniform float bvhMinX[], uniform float bvhMinY[], uniform float bvhMinZ[],
+    uniform float bvhMaxX[], uniform float bvhMaxY[], uniform float bvhMaxZ[],
+    uniform int   bvhLeftFirst[], uniform int bvhCount[],
+    uniform int   bvhSphereIndices[], uniform int bvhNodeCount,
     uniform int frameIndex, uniform int maxBounces
 ) {
     // ISPC foreach: each SIMD lane gets a different pixel index
@@ -213,14 +315,17 @@ export void ISPCRenderPixels(
         for (uniform int bounce = 0; bounce < maxBounces; bounce++) {
             seed += (unsigned int32)bounce;
 
-            // Trace ray against all spheres
+            // Trace ray against BVH
             varying int hitObj;
-            varying float hitDist = TraceRay(
+            varying float hitDist = TraceRayBVH(
                 rOrigX, rOrigY, rOrigZ,
                 rDirX, rDirY, rDirZ,
                 sphPosX, sphPosY, sphPosZ,
                 sphRadius, sphMatIdx,
-                sphereCount,
+                bvhMinX, bvhMinY, bvhMinZ,
+                bvhMaxX, bvhMaxY, bvhMaxZ,
+                bvhLeftFirst, bvhCount,
+                bvhSphereIndices, bvhNodeCount,
                 hitObj
             );
 
