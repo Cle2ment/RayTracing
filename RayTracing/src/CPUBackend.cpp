@@ -128,6 +128,35 @@ void CPUBackend::Render(
 			m_LastISPCSceneVersion = scene.Version;
 		}
 
+		// ── Pack BVH (SoA layout) ──
+		{
+			const auto& bvhNodes = m_BVH.Nodes();
+			const auto& bvhSpIndices = m_BVH.SphereIndices();
+			const size_t bvhCount = bvhNodes.size();
+
+			m_ISPCBvhMinX.resize(bvhCount);
+			m_ISPCBvhMinY.resize(bvhCount);
+			m_ISPCBvhMinZ.resize(bvhCount);
+			m_ISPCBvhMaxX.resize(bvhCount);
+			m_ISPCBvhMaxY.resize(bvhCount);
+			m_ISPCBvhMaxZ.resize(bvhCount);
+			m_ISPCBvhLeftFirst.resize(bvhCount);
+			m_ISPCBvhCount.resize(bvhCount);
+			for (size_t i = 0; i < bvhCount; i++) {
+				const auto& node = bvhNodes[i];
+				m_ISPCBvhMinX[i] = node.Bounds.Min.x;
+				m_ISPCBvhMinY[i] = node.Bounds.Min.y;
+				m_ISPCBvhMinZ[i] = node.Bounds.Min.z;
+				m_ISPCBvhMaxX[i] = node.Bounds.Max.x;
+				m_ISPCBvhMaxY[i] = node.Bounds.Max.y;
+				m_ISPCBvhMaxZ[i] = node.Bounds.Max.z;
+				m_ISPCBvhLeftFirst[i] = node.LeftFirst;
+				m_ISPCBvhCount[i] = node.Count;
+			}
+
+			m_ISPCBvhSphereIndices.assign(bvhSpIndices.begin(), bvhSpIndices.end());
+		}
+
 		// ── Output buffers ──
 		m_ISPCOutputR.resize(pixelCount);
 		m_ISPCOutputG.resize(pixelCount);
@@ -146,6 +175,12 @@ void CPUBackend::Render(
 			m_ISPCMatEmissionPower.data(),
 			m_ISPCOutputR.data(), m_ISPCOutputG.data(), m_ISPCOutputB.data(), m_ISPCOutputA.data(),
 			static_cast<int32_t>(pixelCount), static_cast<int32_t>(sphereCount),
+			// BVH data
+			m_ISPCBvhMinX.data(), m_ISPCBvhMinY.data(), m_ISPCBvhMinZ.data(),
+			m_ISPCBvhMaxX.data(), m_ISPCBvhMaxY.data(), m_ISPCBvhMaxZ.data(),
+			m_ISPCBvhLeftFirst.data(), m_ISPCBvhCount.data(),
+			m_ISPCBvhSphereIndices.data(),
+			static_cast<int32_t>(m_ISPCBvhLeftFirst.size()),
 			static_cast<int32_t>(frameIndex), maxBounces
 		);
 
