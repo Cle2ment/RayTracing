@@ -75,6 +75,7 @@ scripts\Setup.bat
 ```
 
 This single command handles everything:
+
 1. Checks Peanut submodule — auto-initializes if missing
 2. Configures xmake (`xmake f -m release`)
 3. Builds all targets (`xmake build`) — Peanut.lib + RayTracing.exe
@@ -82,6 +83,7 @@ This single command handles everything:
 5. Converts `.sln` → `.slnx` via `dotnet sln migrate`
 
 **Output**:
+
 - `build/windows/x64/release/RayTracing.exe`
 - `vsxmake2026/RayTracing.slnx` — open this in Visual Studio
 
@@ -183,3 +185,7 @@ RayTracing/
 ## License
 
 MIT License. See [LICENSE](LICENSE) for details.
+
+## Copyright
+
+Copyright (c) 2026 Cle2ment
