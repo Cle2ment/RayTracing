@@ -29,6 +29,7 @@ bin-int/
 *.iobj
 *.ipdb
 *.exe
+*.bin
 
 # ─── CUDA Artifacts ───
 *.ptx
