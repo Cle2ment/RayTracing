@@ -1,28 +1,24 @@
-# ─── IDE & Editor ───
-.idea/
-.vs/
-.vscode/
-*.swp
-*~
-.ignore
+# ─── Dependencies (vendored) ───
+vendor/*
+!vendor/ispc/
+vendor/ispc/*
+!vendor/ispc/.gitkeep
+!vendor/catch2/
+vendor/catch2/*
+!vendor/catch2/catch_amalgamated.hpp
+!vendor/catch2/catch_amalgamated.cpp
 
-# ─── Agent Workspace ───
-.omo/
-superpowers/
-
-# ─── Build System (xmake) ───
+# ─── Build System (xmake + Visual Studio) ───
 build/
 .xmake/
 vsxmake2026/
-
-# ─── Visual Studio ───
+bin/
+bin-int/
 *.vcxproj
 *.vcxproj.user
 *.vcxproj.filters
 *.sln
 *.slnx
-bin/
-bin-int/
 
 # ─── Compilation Artifacts ───
 *.obj
@@ -33,7 +29,6 @@ bin-int/
 *.iobj
 *.ipdb
 *.exe
-*.bin
 
 # ─── CUDA Artifacts ───
 *.ptx
@@ -46,15 +41,22 @@ RayTracing/src/PathTracer.ispc.obj
 RayTracing/src/PathTracer_ispc.h
 RayTracing/src/PathTracer_ispc_*.h
 
-# ─── Dependencies (vendored) ───
-vendor/*
-!vendor/ispc/
-vendor/ispc/*
-!vendor/ispc/.gitkeep
-!vendor/catch2/
-vendor/catch2/*
-!vendor/catch2/catch_amalgamated.hpp
-!vendor/catch2/catch_amalgamated.cpp
+# ─── IDE & Editor ───
+.idea/
+.vs/
+.vscode/
+*.swp
+*~
+.ignore
+
+# ─── Agent Workspace ───
+.omo/
+superpowers/
+.worktrees/
+
+# ─── OS Files ───
+.DS_Store
+Thumbs.db
 
 # ─── Runtime ───
 *.ini
@@ -62,6 +64,3 @@ vendor/catch2/*
 # ─── Project-specific ───
 copilot*.md
 docs/language-refactoring-analysis.md
-
-# ─── Git Worktrees ───
-.worktrees/
