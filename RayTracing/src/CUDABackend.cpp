@@ -154,41 +154,8 @@ void CUDABackend::Render(
 		}
 	}
 
-	// Upload scene data only when changed (tracked by scene version)
 	if (scene.Version != m_LastSceneVersion)
-	{
-		UploadSceneToGPU(scene);
-		m_LastSceneVersion = scene.Version;
-
-		// Rebuild BVH and upload to GPU
-		m_BVH.Build(scene);
-		const auto& bvhNodes = m_BVH.Nodes();
-
-		m_GPUBVHNodes.resize(bvhNodes.size());
-		for (size_t i = 0; i < bvhNodes.size(); i++)
-		{
-			m_GPUBVHNodes[i].BoundsMin[0] = bvhNodes[i].Bounds.Min.x;
-			m_GPUBVHNodes[i].BoundsMin[1] = bvhNodes[i].Bounds.Min.y;
-			m_GPUBVHNodes[i].BoundsMin[2] = bvhNodes[i].Bounds.Min.z;
-			m_GPUBVHNodes[i].BoundsMax[0] = bvhNodes[i].Bounds.Max.x;
-			m_GPUBVHNodes[i].BoundsMax[1] = bvhNodes[i].Bounds.Max.y;
-			m_GPUBVHNodes[i].BoundsMax[2] = bvhNodes[i].Bounds.Max.z;
-			m_GPUBVHNodes[i].LeftFirst = bvhNodes[i].LeftFirst;
-			m_GPUBVHNodes[i].Count     = bvhNodes[i].Count;
-		}
-
-		// Copy sorted sphere indices for GPU leaf resolution
-		const auto& sphereIndices = m_BVH.SphereIndices();
-		m_GPUSphereIndices = sphereIndices;
-
-		CUDARenderer_UploadBVH(
-			m_CUDAState.get(),
-			m_GPUBVHNodes.data(),
-			static_cast<uint32_t>(m_GPUBVHNodes.size()),
-			m_GPUSphereIndices.data(),
-			static_cast<uint32_t>(m_GPUSphereIndices.size())
-		);
-	}
+		UploadSceneAndBVHIfChanged(scene);
 
 	// Upload camera position
 	const glm::vec3& camPos = camera.GetPosition();
@@ -245,58 +212,7 @@ void CUDABackend::Render(
 	if (m_InteropEnabled && m_Interop)
 	{
 		m_Interop->SyncCUDAComplete(reinterpret_cast<cudaStream_t>(CUDARenderer_GetComputeStream(m_CUDAState.get())));
-
-		// ── Interop path: CUDA wrote to Vulkan buffer, copy to Peanut's VkImage ──
-		VkCommandBuffer cmd = Peanut::Application::GetCommandBuffer(true);
-		const VkImage dstImage = m_DestinationImage;
-
-		// Buffer barrier: external (CUDA) write → Vulkan transfer read
-		VkBufferMemoryBarrier bufBarrier = {};
-		bufBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
-		bufBarrier.srcAccessMask = 0;
-		bufBarrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-		bufBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-		bufBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-		bufBarrier.buffer = m_Interop->GetVulkanBuffer();
-		bufBarrier.size = VK_WHOLE_SIZE;
-		vkCmdPipelineBarrier(cmd,
-			VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-			VK_PIPELINE_STAGE_TRANSFER_BIT,
-			0, 0, nullptr, 1, &bufBarrier, 0, nullptr);
-
-		VkImageMemoryBarrier preBarrier = {};
-		preBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-		preBarrier.oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		preBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-		preBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-		preBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-		preBarrier.image = dstImage;
-		preBarrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
-		preBarrier.srcAccessMask = 0;
-		preBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-		vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-			VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &preBarrier);
-
-		VkBufferImageCopy region = {};
-		region.imageSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
-		region.imageExtent = { m_Interop->GetWidth(), m_Interop->GetHeight(), 1 };
-		vkCmdCopyBufferToImage(cmd, m_Interop->GetVulkanBuffer(), dstImage,
-			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
-
-		VkImageMemoryBarrier postBarrier = {};
-		postBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-		postBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-		postBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		postBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-		postBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-		postBarrier.image = dstImage;
-		postBarrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
-		postBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-		postBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-		vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT,
-			VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &postBarrier);
-
-		Peanut::Application::FlushCommandBuffer(cmd);
+		CopyInteropToVulkan();
 	}
 	else
 	{
@@ -306,6 +222,91 @@ void CUDABackend::Render(
 			width * height * sizeof(uint32_t)
 		);
 	}
+}
+
+void CUDABackend::UploadSceneAndBVHIfChanged(const Scene& scene)
+{
+	UploadSceneToGPU(scene);
+	m_LastSceneVersion = scene.Version;
+
+	// Rebuild BVH and upload to GPU
+	m_BVH.Build(scene);
+	const auto& bvhNodes = m_BVH.Nodes();
+
+	m_GPUBVHNodes.resize(bvhNodes.size());
+	for (size_t i = 0; i < bvhNodes.size(); i++)
+	{
+		m_GPUBVHNodes[i].BoundsMin[0] = bvhNodes[i].Bounds.Min.x;
+		m_GPUBVHNodes[i].BoundsMin[1] = bvhNodes[i].Bounds.Min.y;
+		m_GPUBVHNodes[i].BoundsMin[2] = bvhNodes[i].Bounds.Min.z;
+		m_GPUBVHNodes[i].BoundsMax[0] = bvhNodes[i].Bounds.Max.x;
+		m_GPUBVHNodes[i].BoundsMax[1] = bvhNodes[i].Bounds.Max.y;
+		m_GPUBVHNodes[i].BoundsMax[2] = bvhNodes[i].Bounds.Max.z;
+		m_GPUBVHNodes[i].LeftFirst = bvhNodes[i].LeftFirst;
+		m_GPUBVHNodes[i].Count     = bvhNodes[i].Count;
+	}
+
+	const auto& sphereIndices = m_BVH.SphereIndices();
+	m_GPUSphereIndices = sphereIndices;
+
+	CUDARenderer_UploadBVH(
+		m_CUDAState.get(),
+		m_GPUBVHNodes.data(),
+		static_cast<uint32_t>(m_GPUBVHNodes.size()),
+		m_GPUSphereIndices.data(),
+		static_cast<uint32_t>(m_GPUSphereIndices.size())
+	);
+}
+
+void CUDABackend::CopyInteropToVulkan()
+{
+	VkCommandBuffer cmd = Peanut::Application::GetCommandBuffer(true);
+	const VkImage dstImage = m_DestinationImage;
+
+	VkBufferMemoryBarrier bufBarrier = {};
+	bufBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+	bufBarrier.srcAccessMask = 0;
+	bufBarrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+	bufBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	bufBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	bufBarrier.buffer = m_Interop->GetVulkanBuffer();
+	bufBarrier.size = VK_WHOLE_SIZE;
+	vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+		VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 1, &bufBarrier, 0, nullptr);
+
+	VkImageMemoryBarrier preBarrier = {};
+	preBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+	preBarrier.oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	preBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+	preBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	preBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	preBarrier.image = dstImage;
+	preBarrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+	preBarrier.srcAccessMask = 0;
+	preBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+	vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+		VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &preBarrier);
+
+	VkBufferImageCopy region = {};
+	region.imageSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
+	region.imageExtent = { m_Interop->GetWidth(), m_Interop->GetHeight(), 1 };
+	vkCmdCopyBufferToImage(cmd, m_Interop->GetVulkanBuffer(), dstImage,
+		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+
+	VkImageMemoryBarrier postBarrier = {};
+	postBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+	postBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+	postBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	postBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	postBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	postBarrier.image = dstImage;
+	postBarrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+	postBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+	postBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+	vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT,
+		VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &postBarrier);
+
+	Peanut::Application::FlushCommandBuffer(cmd);
 }
 
 #endif // PN_CUDA

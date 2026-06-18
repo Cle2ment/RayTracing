@@ -39,6 +39,11 @@ private:
 	) const noexcept;
 	static HitPayLoad Miss(const Ray& ray) noexcept;
 
+	void RenderCPUFallback(uint32_t* outputBuffer);
+#ifdef PN_ISPC
+	void RenderISPC(const Camera& camera, const Scene& scene, uint32_t* outputBuffer, uint32_t frameIndex);
+#endif
+
 private:
 	uint32_t m_Width = 0;
 	uint32_t m_Height = 0;

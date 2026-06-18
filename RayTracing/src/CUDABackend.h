@@ -64,6 +64,10 @@ public:
 private:
 	// ── Scene upload (host → GPU packing + cudaMemcpy) ──
 	void UploadSceneToGPU(const Scene& scene);
+	void UploadSceneAndBVHIfChanged(const Scene& scene);
+
+	// ── Vulkan interop output ──
+	void CopyInteropToVulkan();
 
 	// ── CUDA state ──
 	std::unique_ptr<CUDARenderState, CUDARenderStateDeleter> m_CUDAState;
