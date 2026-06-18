@@ -23,7 +23,7 @@ void CPUBackend::OnResize(uint32_t width, uint32_t height)
 	m_Width = width;
 	m_Height = height;
 
-	m_AccumulationData.resize(width * height);
+	m_AccumulationData.resize(static_cast<size_t>(width) * height);
 
 	m_ImageHorizontalIterator.resize(width);
 	m_ImageVerticalIterator.resize(height);
@@ -58,7 +58,7 @@ void CPUBackend::Render(
 		memset(
 			m_AccumulationData.data(),
 			0,
-			m_Width * m_Height * sizeof(glm::vec4)
+			static_cast<size_t>(m_Width) * m_Height * sizeof(glm::vec4)
 		);
 
 #ifdef PN_ISPC
@@ -69,7 +69,7 @@ void CPUBackend::Render(
 	{
 		const uint32_t width = m_Width;
 		const uint32_t height = m_Height;
-		const uint32_t pixelCount = width * height;
+		const size_t pixelCount = static_cast<size_t>(width) * height;
 
 		const auto& rayDirs = camera.GetRayDirections();
 		const glm::vec3& camPos = camera.GetPosition();
@@ -78,7 +78,7 @@ void CPUBackend::Render(
 		m_ISPCRayDirX.resize(pixelCount);
 		m_ISPCRayDirY.resize(pixelCount);
 		m_ISPCRayDirZ.resize(pixelCount);
-		for (uint32_t i = 0; i < pixelCount; i++) {
+		for (size_t i = 0; i < pixelCount; i++) {
 			m_ISPCRayDirX[i] = rayDirs[i].x;
 			m_ISPCRayDirY[i] = rayDirs[i].y;
 			m_ISPCRayDirZ[i] = rayDirs[i].z;
@@ -185,7 +185,7 @@ void CPUBackend::Render(
 		);
 
 		// ── Unpack: accumulate + tone map + RGBA convert ──
-		for (uint32_t i = 0; i < pixelCount; i++) {
+		for (size_t i = 0; i < pixelCount; i++) {
 			glm::vec4 color(m_ISPCOutputR[i], m_ISPCOutputG[i], m_ISPCOutputB[i], m_ISPCOutputA[i]);
 			m_AccumulationData[i] += color;
 
@@ -210,7 +210,7 @@ void CPUBackend::Render(
 					[this, y, width = m_Width](const uint32_t x)
 					{
 						const glm::vec4 color = PerPixel(x, y);
-						const uint32_t idx = x + y * width;
+						const size_t idx = static_cast<size_t>(x) + static_cast<size_t>(y) * width;
 
 						m_AccumulationData[idx] += color;
 
@@ -230,12 +230,13 @@ void CPUBackend::Render(
 		{
 			for (uint32_t x = 0; x < m_Width; x++)
 			{
+				const size_t idx = static_cast<size_t>(y) * m_Width + x;
 				glm::vec4 color = PerPixel(x, y);
-				m_AccumulationData[x + y * m_Width] += color;
-				glm::vec4 accumulatedColor = m_AccumulationData[x + y * m_Width];
+				m_AccumulationData[idx] += color;
+				glm::vec4 accumulatedColor = m_AccumulationData[idx];
 				accumulatedColor /= static_cast<float>(m_AccumFrameIndex);
 				accumulatedColor = glm::clamp(accumulatedColor, glm::vec4(0.0f), glm::vec4(1.0f));
-				outputBuffer[x + y * m_Width] = PathTracerCore::ConvertToRGBA(accumulatedColor);
+				outputBuffer[idx] = PathTracerCore::ConvertToRGBA(accumulatedColor);
 			}
 		}
 	}
@@ -249,14 +250,14 @@ void CPUBackend::Render(
 glm::vec4 CPUBackend::PerPixel(uint32_t x, uint32_t y) const
 {
 	Ray ray;
+	const size_t idx = static_cast<size_t>(y) * m_Width + x;
 	ray.Origin = m_ActiveCamera->GetPosition();
-	ray.Direction =
-		m_ActiveCamera->GetRayDirections()[x + y * m_Width];
+	ray.Direction = m_ActiveCamera->GetRayDirections()[idx];
 
 	glm::vec3 light(0.0f);
 	glm::vec3 contribution(1.0f);
 
-	uint32_t seed = x + y * m_Width;
+	uint32_t seed = static_cast<uint32_t>(idx);
 	seed *= m_AccumFrameIndex;
 
 	int bounces = m_MaxBounces;
