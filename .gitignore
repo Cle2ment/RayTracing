@@ -51,6 +51,7 @@ RayTracing/src/PathTracer_ispc_*.h
 .ignore
 
 # ─── Agent Workspace ───
+.codegraph/
 .omo/
 superpowers/
 .worktrees/
