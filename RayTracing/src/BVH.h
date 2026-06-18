@@ -2,6 +2,7 @@
 
 #include "Scene.h"
 #include "Ray.h"
+#include "Constants.h"
 
 #include <glm/glm.hpp>
 
