@@ -19,7 +19,7 @@ bool Camera::OnUpdate(const float ts)
 {
 	const glm::vec2 mousePos = Input::GetMousePosition();
 	const glm::vec2 delta = (mousePos - m_LastMousePosition) * kMouseSensitivity;
-
+	m_LastMousePosition = mousePos;
 	m_LastMousePosition = mousePos;
 
 	if (!Input::IsMouseButtonDown(MouseButton::Right))
@@ -33,7 +33,7 @@ bool Camera::OnUpdate(const float ts)
 	bool moved = false;
 
 	constexpr glm::vec3 upDirection(0.0f, 1.0f, 0.0f);
-	const glm::vec3 rightDirection = glm::cross(m_ForwardDirection, upDirection);
+	const glm::vec3 rightDirection = glm::cross(m_ForwardDirection, kUpDirection);
 
 	constexpr float speed = kMoveSpeed;
 
@@ -129,7 +129,7 @@ void Camera::RecalculateView()
 	m_View = glm::lookAt(
 		m_Position, 
 		m_Position + m_ForwardDirection, 
-		upDirection
+		kUpDirection
 	);
 
 	m_InverseView = glm::inverse(m_View);
