@@ -346,7 +346,7 @@ __device__ inline float3 PerPixel(
         {
             // Use luminance (BT.709) for survival probability: fairer than max(channel)
             float p = 0.2126f * contribution.x + 0.7152f * contribution.y + 0.0722f * contribution.z;
-            if (p < 0.001f || (p < 1.0f && RandomFloat(seed) > p))
+            if (p < kRussianRouletteThreshold || (p < 1.0f && RandomFloat(seed) > p))
                 break;
             float invP = 1.0f / p;
             contribution.x *= invP;
@@ -410,12 +410,12 @@ __device__ inline float3 PerPixel(
         float  G = G1_v * G1_l;
         float3 F = FresnelSchlick(WoDotH, F0);
 
-        float3 spec = make_float3(D*G*F.x/(4.0f*NdotL*NdotV), D*G*F.y/(4.0f*NdotL*NdotV), D*G*F.z/(4.0f*NdotL*NdotV));
+        float3 spec = make_float3(D*G*F.x/(4.0f*NdotL*NdotV + kSpecDenominatorEps), D*G*F.y/(4.0f*NdotL*NdotV + kSpecDenominatorEps), D*G*F.z/(4.0f*NdotL*NdotV + kSpecDenominatorEps));
         float3 kD = make_float3((1.0f-F.x)*(1.0f-material.Metallic), (1.0f-F.y)*(1.0f-material.Metallic), (1.0f-F.z)*(1.0f-material.Metallic));
         float3 diff = make_float3(kD.x*material.Albedo.x/kPi, kD.y*material.Albedo.y/kPi, kD.z*material.Albedo.z/kPi);
 
         // PDF for VNDF-sampled H (includes G1 masking for zero-variance at grazing angles)
-        float pdf = fmaxf(G1_v * D / (4.0f * NdotV), kNdotMin);
+        float pdf = fmaxf(G1_v * D / (4.0f * NdotV + kSpecDenominatorEps), kNdotMin);
 
         // Combined BSDF * cosθ / pdf
         contribution.x *= (spec.x + diff.x) * NdotL / pdf;

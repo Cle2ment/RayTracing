@@ -408,7 +408,8 @@ void CUDARenderer_Render(
     cudaError_t err = cudaGetLastError();
     if (err != cudaSuccess)
     {
-		std::fprintf(stderr, "[CUDA] Kernel launch error: %s\n", cudaGetErrorString(err));
+        std::fprintf(stderr, "[CUDA] Kernel launch error: %s\n", cudaGetErrorString(err));
+        state->cudaError = true;
     }
 }
 
