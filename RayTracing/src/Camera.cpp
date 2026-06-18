@@ -18,7 +18,7 @@ Camera::Camera(const float verticalFOV, const float nearClip, const float farCli
 bool Camera::OnUpdate(const float ts)
 {
 	const glm::vec2 mousePos = Input::GetMousePosition();
-	const glm::vec2 delta = (mousePos - m_LastMousePosition) * 0.002f;
+	const glm::vec2 delta = (mousePos - m_LastMousePosition) * kMouseSensitivity;
 
 	m_LastMousePosition = mousePos;
 
@@ -35,7 +35,7 @@ bool Camera::OnUpdate(const float ts)
 	constexpr glm::vec3 upDirection(0.0f, 1.0f, 0.0f);
 	const glm::vec3 rightDirection = glm::cross(m_ForwardDirection, upDirection);
 
-	constexpr float speed = 5.0f;
+	constexpr float speed = kMoveSpeed;
 
 	// Movement
 	if (Input::IsKeyDown(KeyCode::W))
@@ -109,7 +109,7 @@ void Camera::OnResize(const uint32_t width, const uint32_t height)
 
 float Camera::GetRotationSpeed() noexcept
 {
-	return 0.3f;
+	return kRotationSpeed;
 }
 
 void Camera::RecalculateProjection()
@@ -129,7 +129,7 @@ void Camera::RecalculateView()
 	m_View = glm::lookAt(
 		m_Position, 
 		m_Position + m_ForwardDirection, 
-		glm::vec3(0, 1, 0)
+		upDirection
 	);
 
 	m_InverseView = glm::inverse(m_View);
