@@ -94,7 +94,7 @@ __device__ inline float3 SampleGGX_VNDF(float3 V, float a, float r1, float r2)
 
     float3 up = make_float3(0.0f, 0.0f, 1.0f);
     float3 T1;
-    if (Vh.z < 0.9999f) {
+    if (Vh.z < kONBThreshold) {
         T1 = make_float3(-Vh.y, Vh.x, 0.0f);
         float t1Len = sqrtf(T1.x*T1.x + T1.y*T1.y);
         T1 = make_float3(T1.x/t1Len, T1.y/t1Len, 0.0f);
@@ -205,7 +205,7 @@ __device__ inline GPUHitPayload TraceRay(
     );
 
     // Stack-based BVH traversal (max 64 levels)
-    int stack[64];
+    int stack[kBVHMaxStackDepth];
     int stackPtr = 0;
     stack[stackPtr++] = 0;  // root node
 
@@ -345,7 +345,7 @@ __device__ inline float3 PerPixel(
         if (i > 2)
         {
             // Use luminance (BT.709) for survival probability: fairer than max(channel)
-            float p = 0.2126f * contribution.x + 0.7152f * contribution.y + 0.0722f * contribution.z;
+            float p = kLuminanceR * contribution.x + kLuminanceG * contribution.y + kLuminanceB * contribution.z;
             if (p < kRussianRouletteThreshold || (p < 1.0f && RandomFloat(seed) > p))
                 break;
             float invP = 1.0f / p;

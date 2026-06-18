@@ -159,7 +159,7 @@ int CUDARenderer_Init(CUDARenderState* state)
     }
 	std::printf("[CUDA] Using device: %s (Compute %d.%d, %zu MB)\n",
 	   prop.name, prop.major, prop.minor,
-	   prop.totalGlobalMem / (1024 * 1024));
+	   prop.totalGlobalMem / (static_cast<size_t>(kBytesPerMB)));
 
     state->initialized = true;
     err = cudaStreamCreate(&state->uploadStream);
@@ -226,7 +226,7 @@ void CUDARenderer_OnResize(CUDARenderState* state, uint32_t width, uint32_t heig
 
 	std::printf("[CUDA] Resized to %ux%u (%.2f MB device memory)\n",
 	   width, height,
-	   static_cast<float>(state->pixelCount * (2 * sizeof(float4) + sizeof(uint32_t) + sizeof(float3))) / (1024.0f * 1024.0f));
+	   static_cast<float>(state->pixelCount * (2 * sizeof(float4) + sizeof(uint32_t) + sizeof(float3))) / static_cast<float>(kBytesPerMB));
 }
 
 void CUDARenderer_UploadScene(

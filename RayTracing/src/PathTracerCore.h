@@ -99,7 +99,7 @@ namespace PathTracerCore
 	{
 		glm::vec3 Vh = glm::normalize(glm::vec3(a * V.x, a * V.y, V.z));
 		glm::vec3 up(0.0f, 0.0f, 1.0f);
-		glm::vec3 T1 = (Vh.z < 0.9999f) ? glm::normalize(glm::cross(up, Vh)) : glm::vec3(1.0f, 0.0f, 0.0f);
+		glm::vec3 T1 = (Vh.z < kONBThreshold) ? glm::normalize(glm::cross(up, Vh)) : glm::vec3(1.0f, 0.0f, 0.0f);
 		glm::vec3 T2 = glm::cross(Vh, T1);
 
 		float r = glm::sqrt(r1);

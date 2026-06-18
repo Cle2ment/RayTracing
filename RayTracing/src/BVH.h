@@ -104,7 +104,7 @@ public:
 		int resultSphere = -1;
 
 		// Stack-based traversal (max 64 levels for a ~2^64 sphere scene)
-		int stack[64];
+		int stack[kBVHMaxStackDepth];
 		int stackPtr = 0;
 		stack[stackPtr++] = 0;  // root node
 
