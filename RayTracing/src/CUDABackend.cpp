@@ -228,11 +228,11 @@ void CUDABackend::Render(
 	// Denoise pass: run OptiX on the averaged HDR buffer, then re-convert to RGBA
 	if (EnableDenoising)
 	{
-		cudaStream_t stream = (cudaStream_t)CUDARenderer_GetComputeStream(m_CUDAState.get());
+		cudaStream_t stream = reinterpret_cast<cudaStream_t>(CUDARenderer_GetComputeStream(m_CUDAState.get()));
 		if (!m_Denoiser.IsValid())
 			m_Denoiser.Initialize(width, height, stream);
 
-		float4* d_denoiseBuf = (float4*)CUDARenderer_GetDenoiseBuffer(m_CUDAState.get());
+		float4* d_denoiseBuf = reinterpret_cast<float4*>(CUDARenderer_GetDenoiseBuffer(m_CUDAState.get()));
 		if (d_denoiseBuf && m_Denoiser.IsValid())
 		{
 			m_Denoiser.Denoise(d_denoiseBuf, d_denoiseBuf, width, height, stream);
@@ -244,7 +244,7 @@ void CUDABackend::Render(
 	// Download output image from GPU (skip D2H when interop writes directly to Vulkan)
 	if (m_InteropEnabled && m_Interop)
 	{
-		m_Interop->SyncCUDAComplete((cudaStream_t)CUDARenderer_GetComputeStream(m_CUDAState.get()));
+		m_Interop->SyncCUDAComplete(reinterpret_cast<cudaStream_t>(CUDARenderer_GetComputeStream(m_CUDAState.get())));
 
 		// ── Interop path: CUDA wrote to Vulkan buffer, copy to Peanut's VkImage ──
 		VkCommandBuffer cmd = Peanut::Application::GetCommandBuffer(true);
