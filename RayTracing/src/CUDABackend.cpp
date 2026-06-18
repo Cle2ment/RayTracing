@@ -58,7 +58,7 @@ void CUDABackend::OnResize(uint32_t width, uint32_t height)
 #ifdef PN_OPTIX
 	if (cudaInitialized && EnableDenoising)
 	{
-		cudaStream_t stream = (cudaStream_t)CUDARenderer_GetComputeStream(m_CUDAState.get());
+		cudaStream_t stream = reinterpret_cast<cudaStream_t>(CUDARenderer_GetComputeStream(m_CUDAState.get()));
 		if (stream)
 			m_Denoiser.Resize(width, height, stream);
 	}
