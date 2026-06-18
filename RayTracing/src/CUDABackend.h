@@ -68,6 +68,7 @@ private:
 
 	// ── Vulkan interop output ──
 	void CopyInteropToVulkan();
+
 	// ── CUDA state ──
 	std::unique_ptr<CUDARenderState, CUDARenderStateDeleter> m_CUDAState;
 	std::unique_ptr<VkCUDAInterop> m_Interop;
