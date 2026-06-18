@@ -20,6 +20,7 @@ CUDARenderState* CUDARenderer_Create(void);
 void             CUDARenderer_Destroy(CUDARenderState* state);
 int              CUDARenderer_Init(CUDARenderState* state);
 void             CUDARenderer_CheckError(const char* file, int line);
+int              CUDARenderer_IsReady(const CUDARenderState* state);  // initialized && !cudaError
 
 // Resize (allocates device buffers for given viewport size)
 void CUDARenderer_OnResize(CUDARenderState* state, uint32_t width, uint32_t height);

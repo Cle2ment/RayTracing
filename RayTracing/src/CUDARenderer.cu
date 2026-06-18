@@ -187,6 +187,13 @@ int CUDARenderer_Init(CUDARenderState* state)
     return 1;
 }
 
+int CUDARenderer_IsReady(const CUDARenderState* state)
+{
+    if (!state) return 0;
+    return state->initialized && !state->cudaError;
+}
+
+
 void CUDARenderer_OnResize(CUDARenderState* state, uint32_t width, uint32_t height)
 {
     if (!state || !state->initialized) return;
