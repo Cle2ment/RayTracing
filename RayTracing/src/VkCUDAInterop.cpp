@@ -119,7 +119,9 @@ void VkCUDAInterop::ExportToCUDA()
         throw std::runtime_error(std::string("VkCUDAInterop: cudaExternalMemoryGetMappedBuffer failed: ") + cudaGetErrorString(err));
 }
 
-void VkCUDAInterop::SyncCUDAComplete(cudaStream_t stream) noexcept
+void VkCUDAInterop::SyncCUDAComplete(cudaStream_t stream)
 {
-    cudaStreamSynchronize(stream);
+    cudaError_t err = cudaStreamSynchronize(stream);
+    if (err != cudaSuccess)
+        throw std::runtime_error(std::string("VkCUDAInterop: cudaStreamSynchronize failed: ") + cudaGetErrorString(err));
 }

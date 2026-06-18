@@ -16,7 +16,7 @@ public:
     uint32_t GetWidth()  const noexcept { return m_Width; }
     uint32_t GetHeight() const noexcept { return m_Height; }
 
-    void SyncCUDAComplete(cudaStream_t stream) noexcept;
+    void SyncCUDAComplete(cudaStream_t stream);
 
 private:
     void CreateVulkanBuffer();
