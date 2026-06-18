@@ -33,37 +33,36 @@ bool Camera::OnUpdate(const float ts)
 
 	const glm::vec3 rightDirection = glm::cross(m_ForwardDirection, kUpDirection);
 
-	constexpr float speed = kMoveSpeed;
 
 	// Movement
 	if (Input::IsKeyDown(KeyCode::W))
 	{
-		m_Position += m_ForwardDirection * speed * ts;
+		m_Position += m_ForwardDirection * kMoveSpeed * ts;
 		moved = true;
 	}
 	else if (Input::IsKeyDown(KeyCode::S))
 	{
-		m_Position -= m_ForwardDirection * speed * ts;
+		m_Position -= m_ForwardDirection * kMoveSpeed * ts;
 		moved = true;
 	}
 	if (Input::IsKeyDown(KeyCode::A))
 	{
-		m_Position -= rightDirection * speed * ts;
+		m_Position -= rightDirection * kMoveSpeed * ts;
 		moved = true;
 	}
 	else if (Input::IsKeyDown(KeyCode::D))
 	{
-		m_Position += rightDirection * speed * ts;
+		m_Position += rightDirection * kMoveSpeed * ts;
 		moved = true;
 	}
 	if (Input::IsKeyDown(KeyCode::Q))
 	{
-		m_Position -= kUpDirection * speed * ts;
+		m_Position -= kUpDirection * kMoveSpeed * ts;
 		moved = true;
 	}
 	else if (Input::IsKeyDown(KeyCode::E))
 	{
-		m_Position += kUpDirection * speed * ts;
+		m_Position += kUpDirection * kMoveSpeed * ts;
 		moved = true;
 	}
 
