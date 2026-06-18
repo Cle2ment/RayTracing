@@ -9,9 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       id-token: write
-      contents: write
-      pull-requests: write
-      issues: write
+      issues: write   # Allow commenting guidance on issues
     steps:
       - name: Check account age
         id: check
@@ -43,8 +41,10 @@ jobs:
           MODEL: deepseek/deepseek-v4-flash
           USE_GITHUB_TOKEN: true
           PROMPT: |
-            Review this issue. If there is a clear fix or relevant docs:
-            - Provide documentation links
-            - Add error handling guidance for code examples
-            Otherwise, do not comment.
+            Review this issue and provide guidance ONLY.
+            - Do NOT create pull requests or push code
+            - If the issue describes a bug, suggest a fix approach
+            - Provide documentation links or error handling guidance
+            - Be helpful but read-only
+          AGENT: plan
         run: opencode github run
