@@ -28,7 +28,10 @@ public:
 	[[nodiscard]] const std::vector<glm::vec3>& GetRayDirections() const noexcept
 	{ return m_RayDirections; }
 
-	static float GetRotationSpeed() noexcept;
+	static constexpr float kRotationSpeed   = 0.3f;
+	static constexpr float kMouseSensitivity = 0.002f;
+	static constexpr float kMoveSpeed        = 5.0f;
+	static constexpr glm::vec3 kUpDirection  = {0.0f, 1.0f, 0.0f};
 
 private:
 	void RecalculateProjection();
