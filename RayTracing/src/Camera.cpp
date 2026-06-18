@@ -20,7 +20,6 @@ bool Camera::OnUpdate(const float ts)
 	const glm::vec2 mousePos = Input::GetMousePosition();
 	const glm::vec2 delta = (mousePos - m_LastMousePosition) * kMouseSensitivity;
 	m_LastMousePosition = mousePos;
-	m_LastMousePosition = mousePos;
 
 	if (!Input::IsMouseButtonDown(MouseButton::Right))
 	{
@@ -32,7 +31,6 @@ bool Camera::OnUpdate(const float ts)
 
 	bool moved = false;
 
-	constexpr glm::vec3 upDirection(0.0f, 1.0f, 0.0f);
 	const glm::vec3 rightDirection = glm::cross(m_ForwardDirection, kUpDirection);
 
 	constexpr float speed = kMoveSpeed;
@@ -60,12 +58,12 @@ bool Camera::OnUpdate(const float ts)
 	}
 	if (Input::IsKeyDown(KeyCode::Q))
 	{
-		m_Position -= upDirection * speed * ts;
+		m_Position -= kUpDirection * speed * ts;
 		moved = true;
 	}
 	else if (Input::IsKeyDown(KeyCode::E))
 	{
-		m_Position += upDirection * speed * ts;
+		m_Position += kUpDirection * speed * ts;
 		moved = true;
 	}
 
@@ -78,7 +76,7 @@ bool Camera::OnUpdate(const float ts)
 		const glm::quat q = glm::normalize(
 			glm::cross(
 				glm::angleAxis(-pitchDelta, rightDirection),
-				glm::angleAxis(-yawDelta, glm::vec3(0.f, 1.0f, 0.0f))
+				glm::angleAxis(-yawDelta, kUpDirection)
 			));
 
 		m_ForwardDirection = glm::rotate(q, m_ForwardDirection);
