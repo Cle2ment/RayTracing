@@ -54,6 +54,16 @@ void CUDABackend::OnResize(uint32_t width, uint32_t height)
 		}
 	}
 
+	// Resize OptiX denoiser to match new viewport (releases old GPU scratch buffers)
+#ifdef PN_OPTIX
+	if (cudaInitialized && EnableDenoising)
+	{
+		cudaStream_t stream = (cudaStream_t)CUDARenderer_GetComputeStream(m_CUDAState.get());
+		if (stream)
+			m_Denoiser.Resize(width, height, stream);
+	}
+#endif
+
 	m_RayDirsDirty = true;  // Force re-upload on resize
 }
 
