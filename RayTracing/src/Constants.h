@@ -11,3 +11,15 @@ constexpr float kNdotMin                  = 0.001f;  // minimum dot(N,*) for mic
 constexpr float kRussianRouletteThreshold = 0.001f;  // path termination probability threshold
 constexpr float kSpecDenominatorEps       = 0.001f;  // specular BRDF denominator guard
 constexpr float kInSphereEpsilon          = 0.000001f; // rejection threshold for RandomInUnitSphere (1e-6)
+
+// ─── Luminance Constants (BT.709) ───
+constexpr float kLuminanceR = 0.2126f;
+constexpr float kLuminanceG = 0.7152f;
+constexpr float kLuminanceB = 0.0722f;
+
+// ─── Algorithmic Constants ───
+constexpr float kONBThreshold      = 0.9999f;  // BuildONB degeneracy check
+constexpr int   kBVHMaxStackDepth  = 64;       // BVH traversal stack (supports ~2^64 spheres)
+
+// ─── Unit Conversion ───
+constexpr int kBytesPerMB = 1024 * 1024;

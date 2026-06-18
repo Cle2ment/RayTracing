@@ -14,6 +14,15 @@ static const float kRussianRouletteThreshold = 0.001f;
 static const float kSpecDenominatorEps = 0.001f;
 static const float kInSphereEpsilon = 1e-6f;
 
+// ── Luminance Constants (BT.709) ──
+static const float kLuminanceR = 0.2126f;
+static const float kLuminanceG = 0.7152f;
+static const float kLuminanceB = 0.0722f;
+
+// ── Algorithmic Constants ──
+static const float kONBThreshold = 0.9999f;
+#define kBVHMaxStackDepth 64
+
 // ── RNG: PCG Hash (matches Renderer.cpp Utils::PCG_Hash exactly) ──
 // Use unsigned int32: PCG hash relies on unsigned overflow behavior (well-defined).
 // ISPC's unsigned int32→float conversion is efficient on modern targets (AVX2/AVX512).
@@ -100,7 +109,7 @@ static inline void SampleGGX_VNDF(
 
     // T1 = normalize(cross(up, Vh))
     varying float T1x, T1y, T1z;
-    if (Vhz < 0.9999f) {
+    if (Vhz < kONBThreshold) {
         T1x = -Vhy; T1y = Vhx; T1z = 0.0f;
         varying float t1Len = sqrt(T1x*T1x + T1y*T1y);
         T1x /= t1Len; T1y /= t1Len;
@@ -163,7 +172,7 @@ static inline float TraceRayBVH(
     varying bool negZ = (invZ < 0.0f);
 
     // Per-lane varying stack (ISPC handles varying arrays efficiently)
-    varying int stack[64];
+    varying int stack[kBVHMaxStackDepth];
     varying int stackPtr = 0;
     stack[stackPtr++] = 0;  // root node
 
@@ -374,7 +383,7 @@ export void ISPCRenderPixels(
             // ── Russian roulette (after 3 guaranteed bounces) ──
             // Use luminance (BT.709) for survival probability: fairer than max(channel)
             if (bounce > 2) {
-                varying float p = 0.2126f * contribR + 0.7152f * contribG + 0.0722f * contribB;
+                varying float p = kLuminanceR * contribR + kLuminanceG * contribG + kLuminanceB * contribB;
 
                 if (p < kRussianRouletteThreshold)
                     break;

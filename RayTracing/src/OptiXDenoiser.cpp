@@ -4,6 +4,8 @@
 
 #include <cuda.h>  // Driver API for context bridging
 
+#include "Constants.h"
+
 // Define the global OptiX function table (required by optix_stubs.h)
 // Must be defined in exactly one translation unit.
 OptixFunctionTable g_optixFunctionTable_118 = {};
@@ -156,7 +158,7 @@ bool OptiXDenoiser::Initialize(uint32_t width, uint32_t height, cudaStream_t str
                 width, height,
                 static_cast<float>(m_sizes.withoutOverlapScratchSizeInBytes
                                    + m_sizes.stateSizeInBytes
-                                   + sizeof(float)) / (1024.0f * 1024.0f));
+                                   + sizeof(float)) / static_cast<float>(kBytesPerMB));
     return true;
 }
 

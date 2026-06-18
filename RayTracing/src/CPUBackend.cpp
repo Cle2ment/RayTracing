@@ -294,7 +294,7 @@ glm::vec4 CPUBackend::PerPixel(uint32_t x, uint32_t y) const
 		if (i > 2)
 		{
 			// Use luminance (BT.709) for survival probability: fairer than max(channel)
-		const float p = 0.2126f * contribution.r + 0.7152f * contribution.g + 0.0722f * contribution.b;
+		const float p = kLuminanceR * contribution.r + kLuminanceG * contribution.g + kLuminanceB * contribution.b;
 			if (p < kRussianRouletteThreshold || (p < 1.0f && PathTracerCore::RandomFloat(seed) > p))
 				break;
 			contribution /= p;
