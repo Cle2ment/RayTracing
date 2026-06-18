@@ -19,6 +19,7 @@ typedef struct CUDARenderState CUDARenderState;
 CUDARenderState* CUDARenderer_Create(void);
 void             CUDARenderer_Destroy(CUDARenderState* state);
 int              CUDARenderer_Init(CUDARenderState* state);
+int              CUDARenderer_IsValid(CUDARenderState* state);
 void             CUDARenderer_CheckError(const char* file, int line);
 
 // Resize (allocates device buffers for given viewport size)
