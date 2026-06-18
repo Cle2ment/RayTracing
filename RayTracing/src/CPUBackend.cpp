@@ -212,7 +212,7 @@ void CPUBackend::RenderCPUFallback(uint32_t* outputBuffer)
 			{
 				std::ranges::for_each(
 					m_ImageHorizontalIterator.begin(), m_ImageHorizontalIterator.end(),
-					[this, y, width = m_Width](const uint32_t x)
+					[this, y, outputBuffer, width = m_Width](const uint32_t x)
 					{
 						const glm::vec4 color = PerPixel(x, y);
 						const size_t idx = static_cast<size_t>(x) + static_cast<size_t>(y) * static_cast<size_t>(width);
