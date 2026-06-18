@@ -129,11 +129,26 @@ bool OptiXDenoiser::Initialize(uint32_t width, uint32_t height, cudaStream_t str
     CUDA_CHECK(cudaMalloc(&m_dScratchBuffer, m_sizes.withoutOverlapScratchSizeInBytes));
     CUDA_CHECK(cudaMalloc(&m_dHdrIntensity,  sizeof(float)));
 
-    OPTIX_CHECK(optixDenoiserSetup(
+    // Guard: CUDA_CHECK only prints — bail on allocation failure
+    if (!m_dStateBuffer || !m_dScratchBuffer || !m_dHdrIntensity)
+    {
+        std::fprintf(stderr, "[OptiX] CUDA allocation failed — denoiser unavailable\n");
+        Cleanup();
+        return false;
+    }
+
+    OptixResult setupRes = optixDenoiserSetup(
         m_denoiser, reinterpret_cast<CUstream>(stream),
         width, height,
         reinterpret_cast<CUdeviceptr>(m_dStateBuffer),  m_sizes.stateSizeInBytes,
-        reinterpret_cast<CUdeviceptr>(m_dScratchBuffer), m_sizes.withoutOverlapScratchSizeInBytes));
+        reinterpret_cast<CUdeviceptr>(m_dScratchBuffer), m_sizes.withoutOverlapScratchSizeInBytes);
+    if (setupRes != OPTIX_SUCCESS)
+    {
+        std::fprintf(stderr, "[OptiX] optixDenoiserSetup failed: %s (code: %d)\n",
+                     optixGetErrorString(setupRes), static_cast<int>(setupRes));
+        Cleanup();
+        return false;
+    }
 
     m_valid = true;
 
