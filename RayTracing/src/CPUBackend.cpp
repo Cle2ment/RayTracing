@@ -130,35 +130,35 @@ void CPUBackend::RenderISPC(const Camera& camera, const Scene& scene, uint32_t* 
 			m_ISPCMatEmissionPower[i] = m.EmissionPower;
 		}
 		m_LastISPCSceneVersion = scene.Version;
-	}
 
-	// ── Pack BVH (SoA layout) ──
-	{
-		const auto& bvhNodes = m_BVH.Nodes();
-		const auto& bvhSpIndices = m_BVH.SphereIndices();
-		const size_t bvhCount = bvhNodes.size();
+		// ── Pack BVH (SoA layout) ──
+		{
+			const auto& bvhNodes = m_BVH.Nodes();
+			const auto& bvhSpIndices = m_BVH.SphereIndices();
+			const size_t bvhCount = bvhNodes.size();
 
-		m_ISPCBvhMinX.resize(bvhCount);
-		m_ISPCBvhMinY.resize(bvhCount);
-		m_ISPCBvhMinZ.resize(bvhCount);
-		m_ISPCBvhMaxX.resize(bvhCount);
-		m_ISPCBvhMaxY.resize(bvhCount);
-		m_ISPCBvhMaxZ.resize(bvhCount);
-		m_ISPCBvhLeftFirst.resize(bvhCount);
-		m_ISPCBvhCount.resize(bvhCount);
-		for (size_t i = 0; i < bvhCount; i++) {
-			const auto& node = bvhNodes[i];
-			m_ISPCBvhMinX[i] = node.Bounds.Min.x;
-			m_ISPCBvhMinY[i] = node.Bounds.Min.y;
-			m_ISPCBvhMinZ[i] = node.Bounds.Min.z;
-			m_ISPCBvhMaxX[i] = node.Bounds.Max.x;
-			m_ISPCBvhMaxY[i] = node.Bounds.Max.y;
-			m_ISPCBvhMaxZ[i] = node.Bounds.Max.z;
-			m_ISPCBvhLeftFirst[i] = node.LeftFirst;
-			m_ISPCBvhCount[i] = node.Count;
+			m_ISPCBvhMinX.resize(bvhCount);
+			m_ISPCBvhMinY.resize(bvhCount);
+			m_ISPCBvhMinZ.resize(bvhCount);
+			m_ISPCBvhMaxX.resize(bvhCount);
+			m_ISPCBvhMaxY.resize(bvhCount);
+			m_ISPCBvhMaxZ.resize(bvhCount);
+			m_ISPCBvhLeftFirst.resize(bvhCount);
+			m_ISPCBvhCount.resize(bvhCount);
+			for (size_t i = 0; i < bvhCount; i++) {
+				const auto& node = bvhNodes[i];
+				m_ISPCBvhMinX[i] = node.Bounds.Min.x;
+				m_ISPCBvhMinY[i] = node.Bounds.Min.y;
+				m_ISPCBvhMinZ[i] = node.Bounds.Min.z;
+				m_ISPCBvhMaxX[i] = node.Bounds.Max.x;
+				m_ISPCBvhMaxY[i] = node.Bounds.Max.y;
+				m_ISPCBvhMaxZ[i] = node.Bounds.Max.z;
+				m_ISPCBvhLeftFirst[i] = node.LeftFirst;
+				m_ISPCBvhCount[i] = node.Count;
+			}
+
+			m_ISPCBvhSphereIndices.assign(bvhSpIndices.begin(), bvhSpIndices.end());
 		}
-
-		m_ISPCBvhSphereIndices.assign(bvhSpIndices.begin(), bvhSpIndices.end());
 	}
 
 	// ── Output buffers ──
@@ -222,8 +222,8 @@ void CPUBackend::RenderCPUFallback(uint32_t* outputBuffer)
 						glm::vec4 accumulatedColor = m_AccumulationData[idx];
 						accumulatedColor /= static_cast<float>(m_AccumFrameIndex);
 
-				accumulatedColor = glm::clamp(accumulatedColor, glm::vec4(0.0f), glm::vec4(1.0f));
-				outputBuffer[idx] = PathTracerCore::ConvertToRGBA(accumulatedColor);
+						accumulatedColor = glm::clamp(accumulatedColor, glm::vec4(0.0f), glm::vec4(1.0f));
+						outputBuffer[idx] = PathTracerCore::ConvertToRGBA(accumulatedColor);
 					});
 			});
 	} else {
