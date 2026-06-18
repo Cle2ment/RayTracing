@@ -280,7 +280,7 @@ __device__ inline GPUHitPayload TraceRay(
             int rightChild = node.Count;
 
             // Push far child first, then near child (near will be popped first)
-            if (stackPtr + 2 <= 64)
+            if (stackPtr + 2 <= kBVHMaxStackDepth)
             {
                 stack[stackPtr++] = rightChild;
                 stack[stackPtr++] = leftChild;
