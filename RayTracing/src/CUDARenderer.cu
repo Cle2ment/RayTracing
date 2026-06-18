@@ -177,7 +177,13 @@ int CUDARenderer_Init(CUDARenderState* state)
         return 0;
     }
     state->streamsCreated = true;
-    cudaEventCreate(&state->uploadCompleteEvent);
+    err = cudaEventCreate(&state->uploadCompleteEvent);
+    if (err != cudaSuccess)
+    {
+        std::fprintf(stderr, "[CUDA] Failed to create event: %s\n",
+                     cudaGetErrorString(err));
+        return 0;
+    }
     return 1;
 }
 
@@ -362,8 +368,11 @@ void CUDARenderer_Render(
     if (state->pixelCount == 0) return;
 
     // Signal compute stream to wait for pending uploads (non-blocking)
-    cudaEventRecord(state->uploadCompleteEvent, state->uploadStream);
-    cudaStreamWaitEvent(state->computeStream, state->uploadCompleteEvent, 0);
+    cudaError_t evtErr = cudaEventRecord(state->uploadCompleteEvent, state->uploadStream);
+    if (evtErr == cudaSuccess)
+        cudaStreamWaitEvent(state->computeStream, state->uploadCompleteEvent, 0);
+    else
+        std::fprintf(stderr, "[CUDA] cudaEventRecord failed: %s\n", cudaGetErrorString(evtErr));
 
     // Clear accumulation buffer on first frame
     if (frameIndex == 1)
@@ -444,6 +453,13 @@ void CUDARenderer_ConvertDenoisedToRGBA(CUDARenderState* state, cudaStream_t str
         state->d_InteropBuffer ? reinterpret_cast<uint32_t*>(state->d_InteropBuffer) : state->d_OutputImage,
         state->pixelCount
     );
+
+    cudaError_t convErr = cudaGetLastError();
+    if (convErr != cudaSuccess)
+    {
+        std::fprintf(stderr, "[CUDA] ConvertToRGBA kernel launch error: %s\n", cudaGetErrorString(convErr));
+        state->cudaError = true;
+    }
 }
 
 void* CUDARenderer_GetComputeStream(CUDARenderState* state)
