@@ -16,15 +16,19 @@ jobs:
       - uses: actions/checkout@v6
         with:
           persist-credentials: false
-      - uses: anomalyco/opencode/github@latest
+
+      - name: Install opencode
+        run: curl -fsSL https://opencode.ai/install | bash
+
+      - name: Run opencode review
         env:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          model: deepseek/deepseek-v4-pro
-          use_github_token: true
-          prompt: |
+          MODEL: deepseek/deepseek-v4-pro
+          USE_GITHUB_TOKEN: true
+          PROMPT: |
             Review this pull request:
             - Check for code quality issues
             - Look for potential bugs
             - Suggest improvements
+        run: opencode github run

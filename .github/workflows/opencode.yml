@@ -25,9 +25,12 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Install opencode
+        run: curl -fsSL https://opencode.ai/install | bash
+
       - name: Run opencode
-        uses: anomalyco/opencode/github@latest
         env:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-        with:
-          model: deepseek/deepseek-v4-pro
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MODEL: deepseek/deepseek-v4-pro
+        run: opencode github run
