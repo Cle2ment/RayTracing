@@ -21,7 +21,7 @@ static const float kLuminanceB = 0.0722f;
 
 // ── Algorithmic Constants ──
 static const float kONBThreshold = 0.9999f;
-static const int   kBVHMaxStackDepth = 64;
+#define kBVHMaxStackDepth 64
 
 // ── RNG: PCG Hash (matches Renderer.cpp Utils::PCG_Hash exactly) ──
 // Use unsigned int32: PCG hash relies on unsigned overflow behavior (well-defined).
