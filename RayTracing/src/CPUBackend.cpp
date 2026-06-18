@@ -208,7 +208,7 @@ void CPUBackend::RenderCPUFallback(uint32_t* outputBuffer)
 		std::for_each(
 			std::execution::par,
 			m_ImageVerticalIterator.begin(), m_ImageVerticalIterator.end(),
-			[this](uint32_t y)
+			[this, outputBuffer](uint32_t y)
 			{
 				std::ranges::for_each(
 					m_ImageHorizontalIterator.begin(), m_ImageHorizontalIterator.end(),
