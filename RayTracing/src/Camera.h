@@ -33,7 +33,6 @@ public:
 	static constexpr float kMoveSpeed        = 5.0f;
 	static constexpr glm::vec3 kUpDirection  = {0.0f, 1.0f, 0.0f};
 
-	static float GetRotationSpeed() noexcept;
 private:
 	void RecalculateProjection();
 	void RecalculateView();

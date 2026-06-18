@@ -33,7 +33,6 @@ bool Camera::OnUpdate(const float ts)
 
 	const glm::vec3 rightDirection = glm::cross(m_ForwardDirection, kUpDirection);
 
-
 	// Movement
 	if (Input::IsKeyDown(KeyCode::W))
 	{
@@ -69,8 +68,8 @@ bool Camera::OnUpdate(const float ts)
 	// Rotation
 	if (delta.x != 0.0f || delta.y != 0.0f)
 	{
-		const float pitchDelta = delta.y * GetRotationSpeed();
-		const float yawDelta = delta.x * GetRotationSpeed();
+		const float pitchDelta = delta.y * kRotationSpeed;
+		const float yawDelta = delta.x * kRotationSpeed;
 
 		const glm::quat q = glm::normalize(
 			glm::cross(
@@ -104,10 +103,7 @@ void Camera::OnResize(const uint32_t width, const uint32_t height)
 	RecalculateRayDirections();
 }
 
-float Camera::GetRotationSpeed() noexcept
-{
-	return kRotationSpeed;
-}
+
 
 void Camera::RecalculateProjection()
 {
