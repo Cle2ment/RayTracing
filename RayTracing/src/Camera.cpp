@@ -1,10 +1,10 @@
 #include "Camera.h"
 
+#include "Peanut/Input/Input.h"
+
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
 #include <glm/gtx/quaternion.hpp>
-
-#include "Peanut/Input/Input.h"
 
 using namespace Peanut;
 

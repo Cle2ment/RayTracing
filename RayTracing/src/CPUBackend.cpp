@@ -1,6 +1,7 @@
 #include "CPUBackend.h"
 
 #include "PathTracerCore.h"
+#include "Constants.h"
 #include "Peanut/Random.h"
 
 #include <cstring>
@@ -8,7 +9,6 @@
 #include <limits>
 #include <ranges>
 #include <numeric>
-#include "Constants.h"
 
 #ifdef PN_ISPC
 #include "PathTracer_ispc.h"

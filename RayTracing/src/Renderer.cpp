@@ -4,9 +4,7 @@
 #include "CUDABackend.h"
 #include "Peanut/Application.h"
 #endif
-#ifdef PN_ISPC
-#include "CPUBackend.h"  // already included below when !PN_CUDA, but for ISPC path
-#endif
+
 
 #include "CPUBackend.h"
 
