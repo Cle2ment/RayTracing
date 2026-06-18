@@ -121,5 +121,7 @@ void VkCUDAInterop::ExportToCUDA()
 
 void VkCUDAInterop::SyncCUDAComplete(cudaStream_t stream) noexcept
 {
-    cudaStreamSynchronize(stream);
+    cudaError_t err = cudaStreamSynchronize(stream);
+    if (err != cudaSuccess)
+        std::fprintf(stderr, "[Interop] cudaStreamSynchronize failed: %s\n", cudaGetErrorString(err));
 }
