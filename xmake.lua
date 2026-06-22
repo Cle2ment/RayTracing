@@ -210,8 +210,8 @@ target("GoldenRenderer")
     )
 
     add_packages("glm", "stb")
-    add_includedirs("RayTracing/src", "Peanut/Peanut/src")
-    add_defines("GLM_ENABLE_EXPERIMENTAL", "PN_PLATFORM_WINDOWS", "GOLDEN_RENDERER")
+    add_includedirs("RayTracing/src")
+    add_defines("GLM_ENABLE_EXPERIMENTAL", "GOLDEN_RENDERER")
 
     if is_plat("windows") then
         add_cxflags("/utf-8", "/EHsc", "/W4", "/wd4100", "/wd4062")

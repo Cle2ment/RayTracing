@@ -238,7 +238,7 @@ jobs:
 
       - name: Run Golden Image Test
         shell: pwsh
-        run: cd scripts/golden && uv run python test_golden.py
+        run: cd scripts/golden && uv run python test_golden.py --ci
 
   # ── CD: trigger release workflow after successful build on master ──
   release:
