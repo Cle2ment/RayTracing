@@ -1,12 +1,16 @@
 #include "Camera.h"
 
+#ifndef GOLDEN_RENDERER
 #include "Peanut/Input/Input.h"
+#endif
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
 #include <glm/gtx/quaternion.hpp>
 
+#ifndef GOLDEN_RENDERER
 using namespace Peanut;
+#endif
 
 Camera::Camera(const float verticalFOV, const float nearClip, const float farClip)
 	: m_VerticalFOV(verticalFOV), m_NearClip(nearClip), m_FarClip(farClip)
@@ -15,6 +19,7 @@ Camera::Camera(const float verticalFOV, const float nearClip, const float farCli
 	m_Position = glm::vec3(0, 0, 6);
 }
 
+#ifndef GOLDEN_RENDERER
 bool Camera::OnUpdate(const float ts)
 {
 	const glm::vec2 mousePos = Input::GetMousePosition();
@@ -66,6 +71,7 @@ bool Camera::OnUpdate(const float ts)
 	}
 
 	// Rotation
+	constexpr glm::vec3 kUpDir(0.0f, 1.0f, 0.0f);
 	if (delta.x != 0.0f || delta.y != 0.0f)
 	{
 		const float pitchDelta = delta.y * kRotationSpeed;
@@ -74,9 +80,9 @@ bool Camera::OnUpdate(const float ts)
 		const glm::quat q = glm::normalize(
 			glm::cross(
 				glm::angleAxis(-pitchDelta, rightDirection),
-				glm::angleAxis(-yawDelta, kUpDirection)
-			));
-
+				glm::angleAxis(-yawDelta, kUpDir)
+			)
+		);
 		m_ForwardDirection = glm::rotate(q, m_ForwardDirection);
 
 		moved = true;
@@ -90,6 +96,7 @@ bool Camera::OnUpdate(const float ts)
 
 	return moved;
 }
+#endif  // GOLDEN_RENDERER
 
 void Camera::OnResize(const uint32_t width, const uint32_t height)
 {

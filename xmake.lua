@@ -195,3 +195,43 @@ target("RayTracing_test")
     add_packages("glm")
     add_files("RayTracing/test/**.cpp", "vendor/catch2/catch_amalgamated.cpp")
     add_includedirs("RayTracing/src", "vendor/catch2")
+
+-- ── GoldenRenderer (headless CPU renderer for CI golden image testing) ──
+target("GoldenRenderer")
+    set_kind("binary")
+    set_languages("c++23")
+
+    -- Core source files (CPU-only, no Peanut/GLFW/Vulkan dependencies)
+    add_files(
+        "RayTracing/src/CPUBackend.cpp",
+        "RayTracing/src/Camera.cpp",
+        "RayTracing/src/BVH.cpp",
+        "RayTracing/tools/GoldenRenderer.cpp"
+    )
+
+    add_packages("glm", "stb")
+    add_includedirs("RayTracing/src", "Peanut/Peanut/src")
+    add_defines("GLM_ENABLE_EXPERIMENTAL", "PN_PLATFORM_WINDOWS", "GOLDEN_RENDERER")
+
+    if is_plat("windows") then
+        add_cxflags("/utf-8", "/EHsc", "/W4", "/wd4100", "/wd4062")
+        add_defines("NOMINMAX")
+    end
+
+    -- ISPC support (optional, for SIMD-accelerated rendering)
+    if os.isfile("vendor/ispc/bin/ispc.exe") then
+        add_defines("PN_ISPC")
+        before_build(function (target)
+            local ispc = path.absolute("vendor/ispc/bin/ispc.exe")
+            local src  = path.absolute("RayTracing/src/PathTracer.ispc")
+            local outdir = path.absolute("RayTracing/src")
+            os.runv(ispc, {
+                "--target=avx2",
+                "--arch=x86-64", "--opt=disable-assertions",
+                src,
+                "-o", path.join(outdir, "PathTracer.ispc.obj"),
+                "-h", path.join(outdir, "PathTracer_ispc.h")
+            })
+        end)
+        add_ldflags(path.absolute("RayTracing/src/PathTracer.ispc.obj"), {force = true})
+    end
