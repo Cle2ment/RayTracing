@@ -5,12 +5,14 @@ on:
     branches: [ master, nv-render ]
     paths-ignore:
       - 'README.md'
+      - 'AGENTS.md'
       - 'docs/**'
       - '.github/**'
   pull_request:
     branches: [ master ]
     paths-ignore:
       - 'README.md'
+      - 'AGENTS.md'
       - 'docs/**'
       - '.github/**'
   workflow_dispatch:
