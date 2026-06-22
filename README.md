@@ -2,16 +2,20 @@
 
 [English](/README.md) | [中文](/docs/README_zh-CN.md) | [Français](/docs/README_fr-FR.md)
 
-![Static Badge](https://img.shields.io/badge/License-MIT-green)
-<br/>
-![Static Badge](https://img.shields.io/badge/Language-C++23-00599C?logo=cplusplus)
-![Static Badge](https://img.shields.io/badge/GPU-CUDA-76B900?logo=nvidia)
-![Static Badge](https://img.shields.io/badge/CPU_Acceleration-ISPC-0071C5?logo=intel)
-![Static Badge](https://img.shields.io/badge/Project-Xmake-brightgreen?logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+PHBvbHlnb24gcG9pbnRzPSI2NCw0IDY0LDYyIDYyLDY0IDEsNjQgMCw2MyAwLDQwIDYwLDMiIGZpbGw9IiNmZmYiLz48L3N2Zz4=)
-<br/>
-![Static Badge](https://img.shields.io/badge/Auto_Translation-Deepseek-5786FE?logo=deepseek)
-<br/>
+[![License: MIT](https://img.shields.io/badge/License-MIT-green)](LICENSE)
+
+[![Release](https://img.shields.io/github/v/release/Cle2ment/RayTracing?label=Release&color=blue)](https://github.com/Cle2ment/RayTracing/releases)
 [![Build](https://github.com/Cle2ment/RayTracing/actions/workflows/build.yml/badge.svg)](https://github.com/Cle2ment/RayTracing/actions/workflows/build.yml)
+
+[![C++23](https://img.shields.io/badge/C%2B%2B-23-00599C?logo=c%2B%2B&logoColor=white)](https://en.cppreference.com/w/)
+[![CUDA](https://img.shields.io/badge/GPU-CUDA-76B900?logo=nvidia&logoColor=white)](https://developer.nvidia.com/cuda-toolkit)
+[![ISPC](https://img.shields.io/badge/CPU_Accel-ISPC-0071C5?logo=intel&logoColor=white)](https://ispc.github.io/)
+[![Python](https://img.shields.io/badge/Test-Python_3-3776AB?logo=python&logoColor=white)](https://python.org/)
+
+[![uv](https://img.shields.io/badge/Package-uv-7248B9?logo=uv&logoColor=white)](https://docs.astral.sh/uv/)
+[![Xmake](https://img.shields.io/badge/Build-Xmake-brightgreen)](https://xmake.io/)
+
+[![DeepSeek](https://img.shields.io/badge/Translate-DeepSeek-5786FE?logo=deepseek)](https://deepseek.com/)
 
 ## Overview
 
