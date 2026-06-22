@@ -141,16 +141,23 @@ RayTracing/
 │   ├── CUDARenderer.h          # Host C++ interface + packing helpers
 │   ├── VkCUDAInterop.h/cpp     # Vulkan-CUDA zero-copy memory sharing
 │   └── OptiXDenoiser.h/cpp     # OptiX AI denoiser integration
-├── xmake.lua                   # Build config (CUDA + ISPC detection)
+├── xmake.lua                   # Build config (CUDA + ISPC + OptiX detection)
 ├── scripts/
-│   └── Setup.bat               # One-click build + solution generation
+│   ├── Setup.bat               # One-click build + solution generation
+│   └── golden/                  # Python Golden Image Test (uv managed)
+│       ├── pyproject.toml
+│       ├── test_golden.py        # SSIM/MSE regression test
+│       └── uv.lock
+├── test/golden/                 # CPU reference images
+├── RayTracing/tools/            # Headless renderer
+│   └── GoldenRenderer.cpp       # CLI CPU path tracer for CI
 ├── Peanut/                     # Git submodule (independent fork, modifiable for general-purpose improvements)
 │   ├── Peanut/src/             # Peanut framework
 │   ├── vendor/GLFW/            # GLFW windowing
 │   ├── vendor/imgui/           # ImGui UI library
 │   └── vendor/glm/             # GLM math library
 ├── Directory.Build.props       # VS IntelliSense config (auto-discovered by MSBuild)
-└── .github/workflows/          # CI/CD (build, release, translation)
+└── .github/workflows/          # CI/CD (build, test, golden image, release)
 ```
 
 ## Key Bindings
@@ -163,6 +170,24 @@ RayTracing/
 | Render button | Trigger re-render |
 | Accumulate | Toggle progressive rendering |
 | Reset | Clear accumulation buffer |
+
+## Testing
+
+### Unit Tests
+```bash
+xmake build RayTracing_test && xmake run RayTracing_test
+# 28 Catch2 tests: GGX BRDF, TraceRay, PCGHash, ConvertToRGBA, etc.
+```
+
+### Golden Image Regression
+```bash
+xmake build GoldenRenderer
+cd scripts/golden
+uv sync                    # Install deps (numpy, scikit-image, Pillow)
+uv run python test_golden.py    # Compare against golden images
+uv run python test_golden.py --generate  # Generate new golden images
+```
+CI runs golden-test in self-consistency mode: renders twice within the same run and compares SSIM.
 
 ## Demonstration
 
