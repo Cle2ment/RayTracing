@@ -32,7 +32,7 @@ SCENES = {
         "frames": 100,
         "bounces": 5,
     },
-    "emissive_scene": {
+    "default_scene_lowres": {
         "width": 400,
         "height": 300,
         "frames": 50,
