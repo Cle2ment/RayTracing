@@ -1,8 +1,8 @@
 # RayTracing — Project Knowledge Base
 
 **Generated:** 2026-05-28
-**Updated:**   2026-06-12 (All phases complete — #13→#25 merged, Batch 1-12 + ISPC BVH done.)
-**Commit:** `5effef2`
+**Updated:**   2026-06-22 (重构债务清零 — 全部 25+ PRs 合并, #13→#53)
+**Commit:** `9c82953`
 **Branch:** `master`
 
 ## OVERVIEW
@@ -86,7 +86,7 @@ RayTracing/
 | `Material` | struct | `Scene.h:7` | Albedo + emission + roughness + metallic properties |
 | `Sphere` | struct | `Scene.h:22` | Position, radius, material index |
 | `Scene::Version` | field | `Scene.h:34` | Incremental counter for GPU upload dedup |
-| `kPi`, `kRoughnessMin`, etc. | constexpr | `Constants.h:1-13` | Shared compile-time constants (π, 7 epsilon/roughness/threshold values) |
+| `kPi`, `kRoughnessMin`, etc. | constexpr | `Constants.h:1-13` | Shared compile-time constants (pi, 7 epsilon/roughness/threshold values) |
 | `GPUPackedMaterial` | struct | `CUDARenderer.h:108` | Host-side GPU material (must match GPUMaterial) |
 | `GPUPackedSphere` | struct | `CUDARenderer.h:97` | Host-side GPU sphere (must match GPUSphere) |
 | `GPUMaterial` | struct | `CUDATypes.cuh:27` | Device-side material |
@@ -134,7 +134,7 @@ RayTracing/
 
 ### Emission Integration Order
 - Both CPU and GPU: `light += contribution * emission` BEFORE BRDF updates contribution
-- Matches path tracing integral: Le · ∏(previous BSDFs)
+- Matches path tracing integral: Le · prod(previous BSDFs)
 - With GGX BRDF: contribution updated via `(spec + diff) * NdotL / pdf` (replaces old `contribution *= albedo`)
 
 ### Naming
@@ -159,7 +159,7 @@ RayTracing/
 ## UNIQUE STYLES
 
 - Structured bindings for sphere/material field access: `auto& [Position, Radius, MaterialIndex] = spheres[i]`
-- Box-drawing comment separators: `// ─── Section Title ───`
+- Box-drawing comment separators: `// --- Section Title ---`
 - No sky/environment light — all illumination from emissive materials only
 - `m_NeedsRender` flag for conditional re-render (ImGui change detection)
 - `m_RayDirsDirty` flag for lazy camera ray direction re-upload
@@ -192,7 +192,7 @@ dotnet sln vsxmake2026\RayTracing.sln migrate
 
 ## NOTES
 
-- **No tests exist** — verification is manual (visual inspection of rendered output). Catch2 unit tests planned as next priority (MOD-09).
+- **Catch2 unit tests (28 cases)** — covers GGX BRDF, TraceRay, PCGHash, ConvertToRGBA; CI Debug+Release pass
 - **Single light source** — only emissive materials illuminate the scene; no env/sky light
 - **GPU accumulation** — old samples persist in buffer; use Reset button or disable Accumulate for clean re-render after ImGui changes
 
@@ -221,72 +221,56 @@ dotnet sln vsxmake2026\RayTracing.sln migrate
 - **Vulkan-CUDA interop** — Windows-only (Win32 external memory handles); toggle via ImGui checkbox
 - **GGX Microfacet BRDF** — replaces Lambertian diffuse on all three paths (CUDA, CPU C++, ISPC SMID)
 
-## PHASE 1 — Modernization Complete (refactor/phase-1-modernization, #14)
+## 重构完成概要
 
-| MOD | Status | Scope |
-|-----|--------|-------|
-| MOD-01 | ✅ #14 | `std::vector` replaces raw `new[]`/`delete[]` for `m_ImageData` / `m_AccumulationData` |
-| MOD-02 | ✅ #14 | `CUDA_CHECK` macro: Debug→`abort()`, Release→`state->cudaError` flag |
-| MOD-03 | ✅ #14 | `CUDARenderState` RAII — `unique_ptr` + `CUDARenderStateDeleter` |
-| MOD-04 | ✅ #17 | ISPC scene version tracking — skip SoA repacking when `scene.Version` unchanged |
-| MOD-05 | ✅ #19 | `noexcept` added to 29 trivial functions/destructors across 10 files |
-| MOD-06 | ⬚ N/A | ISPC `std::move` — zero candidates (vectors are member variables, already optimally reused) |
-| MOD-07 | ❌ blocked | ASan/UBSan not feasible (MSVC multi-target limitation across Peanut.lib + RayTracing.exe) |
-| MOD-08 | ⬚ N/A | `constexpr` local variables — Renderer.cpp already clean |
-| MOD-09 | ✅ #20 | Catch2 unit tests (28 test cases, 293 assertions, 6 core CPU functions) |
+短期重构已全部完成（Phase 0-12 + 后续补充 #30-#53），代码库达到质量规范标准。
 
-## COMPLETED REFACTORING (PRs #13→#19, all merged)
+| 阶段 | 内容 | PRs |
+|------|------|-----|
+| Phase 0 | 紧急 Bug 修复 (9 bugfixes) | #13 |
+| Phase 1-3 | C++ 现代化 (std::vector, CUDA_CHECK RAII, Peanut 内存) | #14, #15 |
+| Phase 4-5 | CUDA 性能优化 + ISPC 缓存 + MaxBounces | #16, #17 |
+| Phase 6-7 | C-style casts, Constants.h, noexcept | #18, #19 |
+| Phase 8-9 | IRenderBackend 后端抽象, Peanut 静态全局 | #22, #21 |
+| Phase 10-12 | GPU/CPU/ISPC 三后端 BVH 加速, OptiX 修复 | #23, #24, #25 |
+| 后续补充 | CUDA 错误检查, ISPC 溢出, Camera constexpr, 大函数拆分等 | #30-#53 |
 
-| PR | Branch | Scope |
-|----|--------|-------|
-| #13 | `refactor/phase-0-bugfixes` | 9 bugfixes |
-| #14 | `refactor/phase-1-modernization` | MOD-01/02/03 + Peanut P2-01/02 (VkSurfaceKHR, descriptor set leaks) |
-| #15 | `refactor/phase-2-peanut-memory` | P2-03 (unique_ptr EntryPoint), P2-04a/b/c (3× malloc→vector), defaults |
-| #16 | `refactor/phase-4-perf` | P2-05/06/07 (CUDA sync/events/cache) + P2-13 (MaxBounces slider 1-20) |
-| #17 | `refactor/phase-5-infra` | MOD-04 ISPC scene version tracking |
-| #18 | `refactor/phase-6-code-quality` | P2-08→P2-15: C-style casts→named (20 RayTracing + 28 Peanut), Constants.h, constexpr/iota/pi/epsilon |
-| #19 | `refactor/phase-7-finals` | MOD-05 noexcept (29 functions, 10 files) |
-| #20 | `refactor/phase-8-catch2-tests` | MOD-09 Catch2 v3.11 unit tests (28 cases, 293 assertions) |
+### 质量现状
+- 28 Catch2 测试通过 (Debug + Release CI)
+- 三后端一致性: CPU / GPU / ISPC 均使用 GGX VNDF BRDF + BVH 加速
+- GPU 故障自动 CPU 回退 (IRenderBackend)
+- 48 处 C-style casts -> static/reinterpret_cast
+- 0 个 open issue
 
 ### Shared Constants (Constants.h)
 - `kPi = 3.14159265358979323846f` — replaces 11 literal occurrences + 3 `glm::pi<float>()` calls
-- `kSelfIntersectionEpsilon = 0.0001f` — ray self-intersection avoidance offset
-- `kDenominatorEpsilon = 0.0001f` — GGX_G1 division guard
-- `kRoughnessMin = 0.001f` — minimum roughness clamp
-- `kNdotMin = 0.001f` — minimum dot(N,*) clamp
-- `kRussianRouletteThreshold = 0.001f` — path termination probability
-- `kSpecDenominatorEps = 0.001f` — specular BRDF denominator guard
-- `kInSphereEpsilon = 1e-6f` — RandomInUnitSphere rejection threshold
-- Included by: `Renderer.cpp`, `CUDARenderer.cuh`. ISPC path uses local `static const float` equivalents.
+- 7 epsilon/roughness/threshold constexpr values
+- Included by: PathTracerCore.h, CUDARenderer.cuh. ISPC path uses local `static const float` equivalents.
 
-## EXECUTION ORDER
+## 远期方向
 
-Batches in planned execution sequence with current status.
+详见 `docs/superpowers/analysis/2026-06-22-multi-language-feasibility.md`。
 
-| Batch | Scope | Status |
-|-------|-------|--------|
-| Batch 1 | MOD-01 std::vector replacement | ✅ #14 merged |
-| Batch 2 | MOD-02 CUDA_CHECK + MOD-03 RAII | ✅ #14 merged |
-| Batch 3 | Peanut memory fixes (P2-01→P2-04) | ✅ #15 merged |
-| Batch 4 | CUDA perf (P2-05/06/07) + MaxBounces slider (P2-13) | ✅ #16 merged |
-| Batch 5 | ISPC scene version tracking (MOD-04) | ✅ #17 merged |
-| Batch 6 | C-style casts (P2-08→P2-15) + Constants.h + constexpr/iota/pi/epsilon | ✅ #18 merged |
-| Batch 7 | MOD-05 noexcept (29 functions) | ✅ #19 merged |
-| **Batch 8** | **MOD-09 Catch2 unit tests** | ✅ **#20 merged** |
-| Batch 9 | MOD-02b CPU fallback (IRenderBackend) | ✅ #22 merged |
-| Batch 10 | P2-16 Peanut static globals | ✅ #21 merged |
-| Batch 11 | GPU BVH | ✅ #23 merged |
-| Batch 12 | OptiX context bridge fix | ✅ #24 merged |
-| Batch 13 | ISPC BVH | ✅ #25 merged |
+### 推荐路线（按阶段）
 
-> **Update rule:** After completing each batch, mark it ✅, bump the NEXT indicator to the following batch, and update the page header date/commit.
+| 阶段 | 方向 | 说明 |
+|------|------|------|
+| **P0 — 立即** | Golden Image 回归测试 | Python (Pillow+NumPy) SSIM/MSE 比对 CPU 渲染与参考图，CI 集成。所有渲染改动的安全网 |
+| P1 | TypeScript 场景 DSL | Deno builder API -> `.ray.json` -> C++ `Scene::LoadFromJSON`，场景可复现/版本控制 |
+| **P1** | **Rust 场景编译器 CLI** | `clap`+`serde`+`rayon` 接收 `.ray.json`+glTF，离线 BVH 构建，输出二进制 `.rayscene` |
+| P1 | NEE / MIS 重要性采样 | Next Event Estimation + Multiple Importance Sampling，大幅降噪 |
+| P1 | Glass / Transmission BRDF | 玻璃、透明材质折射/透射 |
+| P2 | glTF 场景加载 | 标准 glTF 2.0 三角网格+PBR 材质导入 |
+| P2 | Rust 资产管线 | glTF 解析 + BVH 烘焙独立 CLI |
+| P2 | Rust 程序化场景生成 | `noise`+`rand` 生态生成地形/城市/植被散射 |
+| P2 | CI 迁移 Python / zig cc 实验 | 跨平台 CI，Zig 可选验证 C++23 兼容性 |
 
-## REMAINING (by priority)
+### Rust 策略
+- **推荐**：独立 CLI 工具链（场景编译器、资产管线、BVH 构建库、程序化场景生成）— 零 FFI 耦合
+- **不推荐**：替代 CUDA/ISPC/C++ 核心渲染路径、wgpu 渲染后端
 
-| Priority | Item | Description |
-|----------|------|-------------|
-| P0 | MOD-09 | ✅ Catch2 unit tests for core CPU C++ functions (GGX BRDF, TraceRay, PCGHash, ConvertToRGBA) |
-| P1 | MOD-02b | ✅ CPU fallback on GPU error — IRenderBackend abstraction |
-| P2 | P2-16 | ✅ Peanut mutable static globals → Application members (opportunistic) |
-| P3 | GPU BVH | ✅ Bounding volume hierarchy — CPU + GPU + ISPC BVH traversal |
-| P4 | OptiX fix | ✅ Driver/Runtime API context bridge fix |
+### 不推荐
+- Rust/Zig 替代 CUDA 内核或 ISPC — 现有方案已是最优
+- Rust wgpu 渲染后端 — 需完整重写 GPU 路径
+- Web 预览 / 远程控制 — 与核心目标正交
+

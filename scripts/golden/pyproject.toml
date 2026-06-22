@@ -1,0 +1,10 @@
+[project]
+name = "raytracing-golden-test"
+version = "0.1.0"
+description = "RayTracing Golden Image Regression Test"
+requires-python = ">=3.9"
+dependencies = [
+    "numpy>=1.24",
+    "scikit-image>=0.21",
+    "Pillow>=10.0",
+]

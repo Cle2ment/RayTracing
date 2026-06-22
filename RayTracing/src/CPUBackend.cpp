@@ -2,7 +2,6 @@
 
 #include "PathTracerCore.h"
 #include "Constants.h"
-#include "Peanut/Random.h"
 
 #include <cstring>
 #include <execution>

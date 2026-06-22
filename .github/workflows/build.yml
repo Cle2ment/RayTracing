@@ -204,6 +204,42 @@ jobs:
           xmake build RayTracing_test
           xmake run RayTracing_test
 
+  # ── Golden Image Regression Test (CPU-only, Python + uv) ──
+  golden-test:
+    name: Golden Image Test
+    runs-on: windows-2025-vs2026
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup xmake
+        uses: xmake-io/github-action-setup-xmake@v1
+        with:
+          xmake-version: latest
+
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: amd64
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install Python Dependencies
+        shell: pwsh
+        run: cd scripts/golden && uv sync
+
+      - name: Build GoldenRenderer
+        shell: pwsh
+        run: |
+          xmake f -m release -y
+          xmake build GoldenRenderer
+
+      - name: Run Golden Image Test
+        shell: pwsh
+        run: cd scripts/golden && uv run python test_golden.py --ci
+
   # ── CD: trigger release workflow after successful build on master ──
   release:
     name: Trigger CD Release

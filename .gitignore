@@ -67,3 +67,5 @@ $null
 # ─── Project-specific ───
 copilot*.md
 docs/language-refactoring-analysis.md
+
+.opencode/
