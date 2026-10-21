@@ -59,14 +59,19 @@ def render_scene(exe_path, scene_name, config, suffix=""):
     output_path = GOLDEN_DIR / f"{label}.png"
     cmd = [
         exe_path,
-        "--output", str(output_path),
-        "--width", str(config["width"]),
-        "--height", str(config["height"]),
-        "--frames", str(config["frames"]),
-        "--bounces", str(config["bounces"]),
+        "--output",
+        str(output_path),
+        "--width",
+        str(config["width"]),
+        "--height",
+        str(config["height"]),
+        "--frames",
+        str(config["frames"]),
+        "--bounces",
+        str(config["bounces"]),
     ]
     print(f"  Running: {' '.join(cmd)}")
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
     if result.returncode != 0:
         print(f"  STDERR: {result.stderr}")
         raise RuntimeError(f"GoldenRenderer failed with code {result.returncode}")
@@ -78,9 +83,11 @@ def render_scene(exe_path, scene_name, config, suffix=""):
 
 def compute_metrics(img_path, ref_path):
     """Compute SSIM and MSE between two images."""
-    from skimage.metrics import structural_similarity as ssim
-    from skimage.io import imread
+    from typing import cast
+
     import numpy as np
+    from skimage.io import imread
+    from skimage.metrics import structural_similarity as ssim
 
     img = imread(str(img_path))
     ref = imread(str(ref_path))
@@ -90,10 +97,15 @@ def compute_metrics(img_path, ref_path):
 
     if img.ndim == 3 and img.shape[2] >= 3:
         # Compare RGB channels only — alpha is always 255, dilutes SSIM
-        ssim_val = ssim(img[:,:,:3], ref[:,:,:3], channel_axis=2, data_range=255)
-        mse_val = np.mean((img[:,:,:3].astype(np.float64) - ref[:,:,:3].astype(np.float64)) ** 2)
+        ssim_val = cast(
+            float,
+            ssim(img[:, :, :3], ref[:, :, :3], channel_axis=2, data_range=255),
+        )
+        mse_val = np.mean(
+            (img[:, :, :3].astype(np.float64) - ref[:, :, :3].astype(np.float64)) ** 2
+        )
     else:
-        ssim_val = ssim(img, ref, data_range=255)
+        ssim_val = cast(float, ssim(img, ref, data_range=255))
         mse_val = np.mean((img.astype(np.float64) - ref.astype(np.float64)) ** 2)
 
     return ssim_val, mse_val
@@ -159,7 +171,9 @@ def run_local_test(exe_path, tolerance):
         ref_path = GOLDEN_DIR / f"{name}.png"
         if not ref_path.exists():
             print(f"  SKIP {name}: golden image not found at {ref_path}")
-            print(f"  Run 'cd scripts/golden && uv run python test_golden.py --generate' first.\n")
+            print(
+                "  Run 'cd scripts/golden && uv run python test_golden.py --generate' first.\n"
+            )
             all_pass = False
             continue
 
